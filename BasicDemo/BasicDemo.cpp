@@ -58,7 +58,6 @@ BOOL CBasicDemoApp::InitInstance()
 	// TODO: 应适当修改该字符串，
 	// 例如修改为公司或组织名
 	SetRegistryKey(_T("应用程序向导生成的本地应用程序"));
-
 	CBasicDemoDlg dlg;
 	m_pMainWnd = &dlg;
 	INT_PTR nResponse = dlg.DoModal();
@@ -73,6 +72,7 @@ BOOL CBasicDemoApp::InitInstance()
 		//  “取消”来关闭对话框的代码
 	}
 
+	
 	// 由于对话框已关闭，所以将返回 FALSE 以便退出应用程序，
 	//  而不是启动应用程序的消息泵。
 	return FALSE;

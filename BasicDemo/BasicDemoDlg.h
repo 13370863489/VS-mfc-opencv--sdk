@@ -68,15 +68,28 @@ private:
     bool showdiff = false;
     cv::Mat srcImage;
     int nFrmNum = 0;
-    cv::Mat img_diff;
+    cv::Mat img_file;
     IplImage* pFrImg;     //pFrImg为当前帧的灰度图
     IplImage* pFrImgSec;
-    IplImage* pBkImg;     //pBkImg为当前背景灰度图
+    IplImage* pBkImg;     //pBkImg为当前背景灰度图 
+    cv::Mat imresult;
     IplImage* pBkImgTran;    //
     IplImage* pFrImgTran;
     IplImage* pDiff;
     POINT Old;
+    IplImage* mhi; // 运动历史图像//MHI  
+    IplImage** buf =NULL;
+    IplImage* orient = NULL; // orientation方向   m
+    IplImage* mask = NULL; // valid orientation mask有效方向箭头   
+    IplImage* segmask = NULL; // motion segmentation map   
+ //   IplImage* pBkImg = NULL;
+    IplImage* motion = NULL;
+    IplImage* src;
     void resize();
+    const double MHI_DURATION = 0.5;
+    const double MAX_TIME_DELTA = 0.5;
+    const double MIN_TIME_DELTA = 0.05;
+    CvMemStorage* storage; // temporary storage 
 /*ch:内部函数 | en:Built-in function*/
 private:
     /*ch:最开始时的窗口初始化 | en:Window initialization*/
@@ -132,8 +145,12 @@ private:
 
     void*           m_hGrabThread;              // ch:取流线程句柄 | en:Grab thread handle
     BOOL            m_bThreadState;
-    //变量声明
 
+    private:
+        BOOL bFullScreen;
+        CRect rectFullScreen;
+        WINDOWPLACEMENT m_struOldWndpl;//结构中包含了有关窗口在屏幕上位置的信息
+        WINDOWPLACEMENT m_struOldWndpPic;//PICTURE控件在屏幕上位置的信息
 public:
     /*ch:初始化 | en:Initialization*/
     afx_msg void OnBnClickedEnumButton();               // ch:查找设备 | en:Find Devices
@@ -175,4 +192,17 @@ public:
     void WriteLog( CString msg);
     afx_msg void OnBnClickedButtonsave();
     void OnPictureSave(UINT ID);
+    void  update_mhi(IplImage* img, IplImage* dst, int diff_threshold);
+    int m_Threshold = 30;
+    afx_msg void OnBnClickedButtonThreshold();
+    double m_maxvalue = 200;
+    afx_msg void OnBnClickedButtonmaxvalue();
+    afx_msg void OnBnClickedButtontoleft();
+    int m_rotate = 3;
+    afx_msg void OnBnClickedButtontoright();
+    afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
+    CStatic m_videoWnd;
+    afx_msg void OnDblclkStaticVideo();
+    afx_msg void OnStnDblclickDisplayStatic();
+    afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
 };

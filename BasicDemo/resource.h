@@ -39,6 +39,16 @@
 #define IDC_STATIC_time                 1029
 #define IDC_BUTTON1                     1030
 #define IDC_BUTTON_save                 1030
+#define IDC_EDIT_Threshold              1034
+#define IDC_BUTTON_Threshold            1035
+#define IDC_EDIT_maxvalue               1036
+#define IDC_BUTTON_maxvalue             1037
+#define IDC_BUTTON3                     1040
+#define IDC_BUTTON_showerror            1040
+#define IDC_BUTTON_toleft               1041
+#define IDC_BUTTON_toright              1042
+#define IDC_STATIC_dirty                1043
+#define IDC_STATIC_video                1044
 
 // Next default values for new objects
 // 
@@ -46,7 +56,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        129
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1031
+#define _APS_NEXT_CONTROL_VALUE         1045
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

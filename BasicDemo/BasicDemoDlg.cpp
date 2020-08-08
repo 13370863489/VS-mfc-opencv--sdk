@@ -9,6 +9,9 @@
 #include "opencv2/video/tracking_c.h"
 #include <locale> 
 #include <atlimage.h>
+#include <iostream>  
+
+using namespace std;
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -64,6 +67,8 @@ CBasicDemoDlg::CBasicDemoDlg(CWnd* pParent /*=NULL*/)
     , m_pGrabBuf(NULL)
     , m_nGrabBufSize(0)
     , use_time(_T(""))
+    , m_Threshold(30)
+    , m_maxvalue(200)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
     memset(&m_stImageInfo, 0, sizeof(MV_FRAME_OUT_INFO_EX));
@@ -79,6 +84,11 @@ void CBasicDemoDlg::DoDataExchange(CDataExchange* pDX)
     DDX_Text(pDX, IDC_FRAME_RATE_EDIT, m_dFrameRateEdit);
     DDX_Check(pDX, IDC_SOFTWARE_TRIGGER_CHECK, m_bSoftWareTriggerCheck);
     DDX_Text(pDX, IDC_STATIC_time, use_time);
+    DDX_Text(pDX, IDC_EDIT_Threshold, m_Threshold);
+    DDV_MinMaxInt(pDX, m_Threshold, 0, 255);
+    DDX_Text(pDX, IDC_EDIT_maxvalue, m_maxvalue);
+    DDV_MinMaxDouble(pDX, m_maxvalue, 0, 255);
+    DDX_Control(pDX, IDC_STATIC_video, m_videoWnd);
 }
 
 BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
@@ -105,6 +115,14 @@ BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
     ON_BN_CLICKED(IDC_BUTTON_DIFF, &CBasicDemoDlg::OnBnClickedButtonDiff)
     ON_WM_SIZE()
     ON_BN_CLICKED(IDC_BUTTON_save, &CBasicDemoDlg::OnBnClickedButtonsave)
+    ON_BN_CLICKED(IDC_BUTTON_Threshold, &CBasicDemoDlg::OnBnClickedButtonThreshold)
+    ON_BN_CLICKED(IDC_BUTTON_maxvalue, &CBasicDemoDlg::OnBnClickedButtonmaxvalue)
+    ON_BN_CLICKED(IDC_BUTTON_toleft, &CBasicDemoDlg::OnBnClickedButtontoleft)
+    ON_BN_CLICKED(IDC_BUTTON_toright, &CBasicDemoDlg::OnBnClickedButtontoright)
+    ON_WM_LBUTTONDBLCLK()
+    ON_STN_DBLCLK(IDC_STATIC_video, &CBasicDemoDlg::OnDblclkStaticVideo)
+    ON_STN_DBLCLK(IDC_DISPLAY_STATIC, &CBasicDemoDlg::OnStnDblclickDisplayStatic)
+    ON_WM_GETMINMAXINFO()
 END_MESSAGE_MAP()
 
 // ch:取流线程 | en:Grabbing thread
@@ -160,12 +178,17 @@ BOOL CBasicDemoDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	DisplayWindowInitial();     // ch:显示框初始化 | en:Display Window Initialization
-
+   
     InitializeCriticalSection(&m_hSaveImageMux);
     CRect rect;
     GetClientRect(&rect);//取客户区大小
     Old.x = rect.right - rect.left;
     Old.y = rect.bottom - rect.top;
+    m_Threshold = 30;
+    m_maxvalue = 200;
+    static CFont Bfont;
+    Bfont.CreatePointFont(220, _T("宋体"));
+    GetDlgItem(IDC_BUTTON_showerror)->SetFont(&Bfont);
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 
@@ -666,7 +689,146 @@ int CBasicDemoDlg::SaveImage()
     return 0;
 }
 
-
+//void  CBasicDemoDlg::update_mhi(IplImage* img, IplImage* dst, int diff_threshold)
+//{
+//    IplImage* showimg = img;
+//    double timestamp = (double)clock() / CLOCKS_PER_SEC; // get current time in seconds   
+//    CvSize size = cvSize(img->width, img->height); // get current frame size   
+//    int i, idx1 = NULL,last = 0, idx2;
+//    IplImage* silh;
+//    CvSeq* seq;
+//    CvRect comp_rect;
+//    double count;
+//    double angle;
+//    CvPoint center;
+//    double magnitude;
+//    CvScalar color;
+//
+//    // allocate images at the beginning or   
+//    // reallocate them if the frame size is changed   
+//    if (!mhi || mhi->width != size.width || mhi->height != size.height)
+//    {
+//        if (buf == 0)
+//        {
+//            buf = (IplImage**)malloc(3 * sizeof(buf[0]));
+//            memset(buf, 0, 3 * sizeof(buf[0]));
+//        }
+//
+//        for (i = 0; i < 3; i++)
+//        {
+//            cvReleaseImage(&buf[i]);
+//            buf[i] = cvCreateImage(size, IPL_DEPTH_8U, 1);
+//            cvZero(buf[i]);
+//        }
+//        cvReleaseImage(&mhi);
+//        cvReleaseImage(&orient);
+//        cvReleaseImage(&segmask);
+//        cvReleaseImage(&mask);
+//
+//        mhi = cvCreateImage(size, IPL_DEPTH_32F, 1);
+//        cvZero(mhi); // clear MHI at the beginning   
+//        orient = cvCreateImage(size, IPL_DEPTH_32F, 1);
+//        segmask = cvCreateImage(size, IPL_DEPTH_32F, 1);
+//        mask = cvCreateImage(size, IPL_DEPTH_8U, 1);
+//    }
+//
+//    cvCvtColor(img, buf[last], CV_BGR2GRAY); // 讲帧数据转化为灰度图，buf[0]指向第一帧图，buf[1]第二帧   
+//
+//    idx2 = (last + 1) % 3; // 每N帧计一小循环，即idx2按1，2，3……N增长，到N后又变成1；index of (last - (N-1))th frame   
+//    last = idx2;//更新last=0，1，2，3；0，1，2，3；……   
+//
+//    silh = buf[idx2];
+//    cvAbsDiff(buf[idx1], buf[idx2], silh); // 前后帧求差，silh = abs(buf[idx1] - buf[idx2])；//get difference between frames   
+//
+//    cvThreshold(silh, silh, diff_threshold, 1, CV_THRESH_BINARY); //将求差后图像利用阈值二值化 //and threshold it   
+//    cvUpdateMotionHistory(silh, mhi, timestamp, MHI_DURATION); //去掉"运动时产生的重影，像光流一样的东西"以更新运动历史图像// update MHI   
+//                                                                //MHI（motion history image） 中在运动发生的象素点被设置为当前时间戳，而运动发生较久的象素点被清除。   
+//                                                                //mhi为二值历史图   
+//    // 将二值历史图mhi转化成灰度图，再转化成rgb图//convert MHI to blue 8u image   
+//    cvCvtScale(mhi, mask, 255. / MHI_DURATION,
+//        (MHI_DURATION - timestamp) * 255. / MHI_DURATION);// 将二值历史图mhi转化成灰度图，
+//                                                        //timestamp=1时刚好将历史轮廓消掉
+//    cvZero(dst);
+//    cvSplit(mask, 0, 0, 0, dst);//从几个单通道数组组合成多通道数组,即将灰度图转化为蓝色图，按BGR顺序正好是蓝色
+//
+//    // 计算运动梯度方向，和方向标，calculate motion gradient orientation and valid orientation mask   
+//    cvCalcMotionGradient(mhi, mask, orient, MAX_TIME_DELTA, MIN_TIME_DELTA, 3);
+//
+//    if (!storage)
+//        storage = cvCreateMemStorage(0);
+//    else
+//        cvClearMemStorage(storage);
+//
+//    // 获得各个运动部件（将整个运动分成几个独立的运动）存储在storage里，segment motion: get sequence of motion components   
+//    //segmask用于存放被标记的运动图像映射图？// segmask is marked motion components map. It is not used further   
+//    seq = cvSegmentMotion(mhi, segmask, storage, timestamp, MAX_TIME_DELTA);
+//    /*mhi
+//    运动历史图像
+//    seg_mask
+//    发现应当存储的 mask 的图像, 单通道, 32bits， 浮点数.
+//    storage
+//    包含运动连通域序列的内存存储仓
+//    timestamp
+//    当前时间，毫秒单位
+//    seg_thresh
+//    分割阈值，推荐等于或大于运动历史“每步”之间的间隔。
+//    */
+//
+//    //cvNamedWindow( "segmask", 1 );   
+//    //cvShowImage( "segmask", segmask );   
+//    // 遍历所有运动部件iterate through the motion components,   
+//    // One more iteration (i == -1) corresponds to the whole image (global motion)  
+//    int personCount = 0;
+//    for (i = 0; i < seq->total; i++)
+//    {
+//
+//        if (i < 0) { // case of the whole image   
+//            comp_rect = cvRect(0, 0, size.width, size.height);
+//            color = CV_RGB(255, 255, 255);//白色表示整体运动图   
+//            magnitude = 100;//指明圆半径   
+//        }
+//        else { // i-th motion component   
+//            comp_rect = ((CvConnectedComp*)cvGetSeqElem(seq, i))->rect;
+//            // if( comp_rect.width + comp_rect.height < 70 ) // 忽略很小的连通区域reject very small components   
+//            //     continue;   
+//            if (comp_rect.height < 30 || comp_rect.width < 10)
+//                continue;
+//            color = CV_RGB(255, 0, 0);//红色表示部件运动图   
+//            magnitude = 20;//指明圆半径   
+//            personCount++;
+//        }
+//
+//        //选择感兴趣的运动部件，是通过和矩形comp_rect匹配得到的， select component ROI（感兴趣区域）   
+//        cvSetImageROI(silh, comp_rect);//基于给定的矩形comp_rect设置图像的 ROI（感兴趣区域）   
+//        cvSetImageROI(mhi, comp_rect);
+//        cvSetImageROI(orient, comp_rect);
+//        cvSetImageROI(mask, comp_rect);
+//
+//        // 计算方向（角度）calculate orientation   
+//        angle = cvCalcGlobalOrientation(orient, mask, mhi, timestamp, MHI_DURATION);//计算一个选择部件的运动方向   
+//        angle = 360.0 - angle;  // adjust for images with top-left origin   
+//
+//        count = cvNorm(silh, 0, CV_L1, 0); // 计算包围轮廓的最小矩形所需点的个数calculate number of points within silhouette（轮廓） ROI   
+//
+//        cvResetImageROI(mhi);
+//        cvResetImageROI(orient);
+//        cvResetImageROI(mask);
+//        cvResetImageROI(silh);
+//
+//        // check for the case of little motion   
+//        if (count < comp_rect.width * comp_rect.height * 0.05)
+//            continue;
+//
+//        // draw a clock with arrow indicating the direction   
+//        center = cvPoint((comp_rect.x + comp_rect.width / 2),
+//            (comp_rect.y + comp_rect.height / 2));
+//
+//        cvCircle(img, center, cvRound(magnitude * 1.2), color, 3, CV_AA, 0);    //cvRound: 对一个double型的数进行四舍五入
+//        cvLine(img, center, cvPoint(cvRound(center.x + magnitude * cos(angle * CV_PI / 180)),
+//            cvRound(center.y - magnitude * sin(angle * CV_PI / 180))), color, 3, CV_AA, 0);
+//    }
+// //   std::cout << "视频中有： " << personCount << " 个人" << std::endl;
+//}
 int CBasicDemoDlg::RGB2BGR(unsigned char* pRgbData, unsigned int nWidth, unsigned int nHeight)
 {
     if (NULL == pRgbData)
@@ -735,16 +897,14 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
         return false;
     }
 
+
     //save converted image in a local file
     try {
 
-        DrawPicToHDC(&(IplImage(srcImage)), IDC_STATIC);
+       
         if (showdiff)
         {
-            
-            IplImage* src;
-
-            src = &IplImage(img_diff);
+            src = &IplImage(img_file);
             nFrmNum++;
             //如果是第一帧，需要申请内存，并初始化
             if (nFrmNum == 1)
@@ -759,28 +919,73 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
             else //是否进行播放，而不进行检测
             {
                 //pFrImg为当前帧的灰度图
-                cvCvtColor(&IplImage(srcImage) , pFrImg, CV_BGR2GRAY);  //1 原图像 2  输出图像
+                cvCvtColor(&IplImage(srcImage) , pFrImg, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
                 cvCvtColor(src, pFrImgSec, CV_BGR2GRAY);
                 WriteLog(L"图像做差");
                 cvAbsDiff(pFrImg, pFrImgSec, pBkImg);    //图像做差
+                cvThreshold(pBkImg, pBkImg, m_Threshold,m_maxvalue, CV_THRESH_BINARY);  //进行阈值处理 二值化
+
                // cvThreshold(pBkImg, pBkImg, 30, 1, CV_THRESH_BINARY);//将求差后图像利用阈值二值化 //and threshold it   
                 CvSize size = cvSize(pBkImg->width, pBkImg->height); // get current frame size   
                // IplImage*  mhi = cvCreateImage(size, IPL_DEPTH_32F, 1);
-                double timestamp = (double)clock() / CLOCKS_PER_SEC; // get current time in seconds
-               // cvUpdateMotionHistory(pBkImg, mhi, timestamp, 0.5);
+                imresult = cv::cvarrToMat(pBkImg);
+                // 4.腐蚀  
+                Mat kernel_erode = getStructuringElement(MORPH_RECT, Size(3, 3));
+                Mat kernel_dilate = getStructuringElement(MORPH_RECT, Size(18, 18));
+                erode(imresult, imresult, kernel_erode);
+               
+                // 5.膨胀  
+               // dilate(imresult, imresult, kernel_dilate);
+
+                vector<vector<Point>> contours;
+                findContours(imresult, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+                // 在result上绘制轮廓
+                drawContours(srcImage, contours, -1, Scalar(0, 200, 255), 2);  //原图上
+                // 7.查找正外接矩形  
+                vector<Rect> boundRect(contours.size());
+                for (int i = 0; i < contours.size(); i++)
+                {
+                    boundRect[i] = boundingRect(contours[i]);
+                    // 在result上绘制正外接矩形
+                    rectangle(srcImage, boundRect[i], Scalar(0, 255, 0), 2);  //在原图上画矩形
+                }
+
+                if (contours.size() >= 0)
+                {
+                    CString str;
+                    str.Format(_T("%d"), contours.size());
+                    CStatic* pStatic = (CStatic*)GetDlgItem(IDC_BUTTON_showerror);
+                    pStatic->SetWindowText(str);
+                }
+                double timestamp = (double)clock() / CLOCKS_PER_SEC; // get current time in seconds  
+
+                //update_mhi(pBkImg, motion, 30);
+
+                rotate(imresult, imresult, m_rotate);
                 WriteLog(L"图像显示");
-                DrawPicToHDC(pBkImg, IDC_DISPLAY_STATIC);
+                DrawPicToHDC(&(IplImage(imresult)), IDC_DISPLAY_STATIC);  // 显示处理图
                 
             }
         }
+        //图像旋转
+/*
+ROTATE_90_CLOCKWISE = 0, //!<Rotate 90 degrees clockwise
+ROTATE_180 = 1, //!<Rotate 180 degrees clockwise
+ROTATE_90_COUNTERCLOCKWISE = 2, //!<Rotate 270 degrees clockwise
+*/
+        
+        rotate(srcImage, srcImage, m_rotate);
+        DrawPicToHDC(&(IplImage(srcImage)), IDC_STATIC_video);
         finish = clock();
         duration = (double)(finish - start) / CLOCKS_PER_SEC;
         CString str;
         str.Format(_T("用时：%f秒"), duration);
+
+
         CStatic * pStatic = (CStatic*)GetDlgItem(IDC_STATIC_time);
         pStatic->SetWindowText(str);
       
-
+        //srcImage.release();
         
     }
     catch (cv::Exception& ex) {
@@ -1002,6 +1207,7 @@ void CBasicDemoDlg::OnBnClickedOpenButton()
 // ch:按下关闭设备按钮：关闭设备 | en:Click Close button: Close Device
 void CBasicDemoDlg::OnBnClickedCloseButton()
 {
+    OnBnClickedStopGrabbingButton();
     CloseDevice();
     EnableControls(TRUE);
 
@@ -1085,6 +1291,7 @@ void CBasicDemoDlg::OnBnClickedStartGrabbingButton()
 // ch:按下结束采集按钮 | en:Click Stop button
 void CBasicDemoDlg::OnBnClickedStopGrabbingButton()
 {
+    showdiff = false;
     if (FALSE == m_bOpenDevice || FALSE == m_bStartGrabbing || NULL == m_pcMyCamera)
     {
         return;
@@ -1250,6 +1457,9 @@ void CBasicDemoDlg::OnBnClickedSaveJpgButton()
 // ch:右上角退出 | en:Exit from upper right corner
 void CBasicDemoDlg::OnClose()
 {
+    OnBnClickedStopGrabbingButton();
+  //  CloseDevice();
+    Sleep(1000);
     PostQuitMessage(0);
     CloseDevice();
 
@@ -1259,7 +1469,7 @@ void CBasicDemoDlg::OnClose()
 
 BOOL CBasicDemoDlg::PreTranslateMessage(MSG* pMsg)
 {
-    if (pMsg->message == WM_KEYDOWN&&pMsg->wParam == VK_ESCAPE)
+  /*  if (pMsg->message == WM_KEYDOWN&&pMsg->wParam == VK_ESCAPE)
     {
         return TRUE;
     }
@@ -1267,8 +1477,8 @@ BOOL CBasicDemoDlg::PreTranslateMessage(MSG* pMsg)
     if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
     {
         return TRUE;
-    }
-
+    }*/
+   
     return CDialog::PreTranslateMessage(pMsg);
 }
 
@@ -1327,7 +1537,13 @@ bool CBasicDemoDlg::RemoveCustomPixelFormats(enum MvGvspPixelType enPixelFormat)
 void CBasicDemoDlg::OnBnClickedButtonDiff()
 {
     showdiff = !showdiff;
-    img_diff = imread("1.png");
+    img_file = imread("1.bmp");
+ //   buf = NULL;
+    // temporary images    
+  ///  mhi = NULL; // 运动历史图像//MHI   
+    nFrmNum = 0;
+   /* if (srcImage.size() != 0)
+        srcImage.release();*/
 }
 
 void CBasicDemoDlg::resize()
@@ -1369,7 +1585,7 @@ void CBasicDemoDlg::OnSize(UINT nType, int cx, int cy)
 
     // TODO: Add your message handler code here
     if (nType == SIZE_RESTORED || nType == SIZE_MAXIMIZED) {
-      //  resize();
+        resize();
     }
 }
 
@@ -1411,16 +1627,7 @@ void CBasicDemoDlg::OnPictureSave(UINT ID)
     imag.Create(rect.Width(), rect.Height(), 32);
     ::BitBlt(imag.GetDC(), 0, 0, rect.Width(), rect.Height(), pdc->m_hDC, 0, 0, SRCCOPY);
 
-   // TCHAR szFilter[] = _T("jpg file(*.jpg)|*.jpg|bmp file(*.bmp)|*.bmp|所有文件(*.*)|*.*||");  //文件格式过滤
-    // 构造保存文件对话框    
-    //CFileDialog fileDlg(FALSE, _T("jpg"), _T("*.jpg"), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, szFilter, this);
-   // fileDlg.m_ofn.lpstrTitle = _T("保存直方图");  //保存对话窗口标题名
     CString picturePath;
-  //  if (IDOK == fileDlg.DoModal())  //按下确认键
-  // / {
-   //     picturePath = fileDlg.GetPathName();  //文件路径
-   // }
-
 
 	HDC hDC = imag.GetDC();
 
@@ -1447,11 +1654,6 @@ void CBasicDemoDlg::OnPictureSave(UINT ID)
 	HBITMAP  hBitmap = (HBITMAP)memDC.SelectObject(pOld->m_hObject);
 
 	imDest.Attach(hBitmap);// 载入位图资源      
-
-
-
-
-
     HRESULT hResult = imDest.Save(L"1.png"); //保存图片
     ReleaseDC(pdc);
     imag.ReleaseDC();
@@ -1461,6 +1663,124 @@ void CBasicDemoDlg::OnBnClickedButtonsave()
 {
     // TODO: 在此添加控件通知处理程序代码
   //  OnPictureSave(IDC_STATIC); //用这个方法保存picture control里面的图片像素太低，影响太大
+    cv::imwrite("1.bmp", srcImage);  //写入图片srcImage 
+}
 
-    cv::imwrite("1.bmp", srcImage);  //写入图片srcImage
+
+void CBasicDemoDlg::OnBnClickedButtonThreshold()
+{
+    // TODO: 在此添加控件通知处理程序代码
+    CString str;
+    GetDlgItemText(IDC_EDIT_Threshold, str);
+    m_Threshold = _ttoi(str);
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtonmaxvalue()
+{
+    // TODO: 在此添加控件通知处理程序代码
+    CString str;
+    GetDlgItemText(IDC_EDIT_maxvalue, str);
+    m_maxvalue = _ttoi(str);
+   
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtontoleft()
+{
+    // TODO: 在此添加控件通知处理程序代码
+    m_rotate -= 1;
+    if (m_rotate < 0)
+        m_rotate = 3;
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtontoright()
+{
+    // TODO: 在此添加控件通知处理程序代码
+    if (m_rotate >= 3)
+        m_rotate = -1;
+    m_rotate += 1; 
+  
+}
+
+
+void CBasicDemoDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+
+    CDialog::OnLButtonDblClk(nFlags, point);
+}
+
+
+void CBasicDemoDlg::OnDblclkStaticVideo()
+{
+    // TODO: 在此添加控件通知处理程序代码
+    if (!bFullScreen)
+    {
+        bFullScreen = true;
+
+        //获取系统屏幕宽高
+        int g_iCurScreenWidth = GetSystemMetrics(SM_CXSCREEN);
+        int g_iCurScreenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+        //用m_struOldWndpl得到当前窗口的显示状态和窗体位置，以供退出全屏后使用
+        GetWindowPlacement(&m_struOldWndpl);
+        GetDlgItem(IDC_STATIC_video)->GetWindowPlacement(&m_struOldWndpPic);
+
+        //计算出窗口全屏显示客户端所应该设置的窗口大小，主要为了将不需要显示的窗体边框等部分排除在屏幕外
+        CRect rectWholeDlg;
+        CRect rectClient;
+        GetWindowRect(&rectWholeDlg);//得到当前窗体的总的相对于屏幕的坐标
+        RepositionBars(0, 0xffff, AFX_IDW_PANE_FIRST, reposQuery, &rectClient);//得到客户区窗口坐标
+        ClientToScreen(&rectClient);//将客户区相对窗体的坐标转为相对屏幕坐标
+        //GetDlgItem(IDC_STATIC_PICSHOW)->GetWindowRect(rectClient);//得到PICTURE控件坐标
+
+        rectFullScreen.left = rectWholeDlg.left - rectClient.left;
+        rectFullScreen.top = rectWholeDlg.top - rectClient.top;
+        rectFullScreen.right = rectWholeDlg.right + g_iCurScreenWidth - rectClient.right;
+        rectFullScreen.bottom = rectWholeDlg.bottom + g_iCurScreenHeight - rectClient.bottom;
+
+        //设置窗口对象参数，为全屏做好准备并进入全屏状态
+        WINDOWPLACEMENT struWndpl;
+        struWndpl.length = sizeof(WINDOWPLACEMENT);
+        struWndpl.flags = 0;
+        struWndpl.showCmd = SW_SHOWNORMAL;
+        struWndpl.rcNormalPosition = rectFullScreen;
+        SetWindowPlacement(&struWndpl);//该函数设置指定窗口的显示状态和显示大小位置等，是我们该程序最为重要的函数
+
+        //将PICTURE控件的坐标设为全屏大小
+        GetDlgItem(IDC_STATIC_video)->MoveWindow(CRect(0, 0, g_iCurScreenWidth, g_iCurScreenHeight));
+    }
+    else
+    {
+        
+        SetWindowPlacement(&m_struOldWndpl);
+        GetDlgItem(IDC_STATIC_video)->SetWindowPlacement(&m_struOldWndpPic);
+        bFullScreen = false;
+    }
+}
+
+
+void CBasicDemoDlg::OnStnDblclickDisplayStatic()
+{
+    // TODO: 在此添加控件通知处理程序代码
+   
+}
+
+
+void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+    if (bFullScreen)
+    {
+        lpMMI->ptMaxSize.x = rectFullScreen.Width();
+        lpMMI->ptMaxSize.y = rectFullScreen.Height();
+        lpMMI->ptMaxPosition.x = rectFullScreen.left;
+        lpMMI->ptMaxPosition.y = rectFullScreen.top;
+        lpMMI->ptMaxTrackSize.x = rectFullScreen.Width();
+        lpMMI->ptMaxTrackSize.y = rectFullScreen.Height();
+    }
+
+    CDialog::OnGetMinMaxInfo(lpMMI);
 }
