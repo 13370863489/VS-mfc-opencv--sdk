@@ -4,6 +4,7 @@
 #include "afxwin.h" 
 #include "MvCamera.h"
 #include "CvvImage.h"
+#include "SoftKey.h"
 #define STATUS_ERROR            -1
 #define IMAGE_NAME_LEN          256
 
@@ -69,6 +70,7 @@ private:
     cv::Mat srcImage;
     int nFrmNum = 0;
     cv::Mat img_file;
+    cv::Mat orgPic;
     IplImage* pFrImg;     //pFrImg为当前帧的灰度图
     IplImage* pFrImgSec;
     IplImage* pBkImg;     //pBkImg为当前背景灰度图 
@@ -92,7 +94,19 @@ private:
     CvMemStorage* storage; // temporary storage 
     bool isDiffScFull = false;  //缺陷窗口最大化状态
 
+    //set ROI
+    BOOL m_draw_rect;
+    CRect rect_view;
+    CPoint down_point;
+    CRect make_rect;
+    CString m_edit_show;
+    CRect rect_rect;
+    CStatic m_showRectangle;
+    CRect m_rect;
+    bool m_WriteLog;
 /*ch:内部函数 | en:Built-in function*/
+    //加密
+    char DevicePath[MAX_PATH];
 private:
     /*ch:最开始时的窗口初始化 | en:Window initialization*/
     int DisplayWindowInitial(void);
@@ -122,7 +136,7 @@ private:
 
     // ch:去除自定义的像素格式 | en:Remove custom pixel formats
     bool RemoveCustomPixelFormats(enum MvGvspPixelType enPixelFormat);
-  
+    void ChickKey();
 private:
     /*ch:状态 | en:Status*/
     BOOL  m_bOpenDevice;                        // ch:是否打开设备 | en:Whether to open device
@@ -147,7 +161,7 @@ private:
 
     void*           m_hGrabThread;              // ch:取流线程句柄 | en:Grab thread handle
     BOOL            m_bThreadState;
-
+    SoftKey ytsoftkey;
     private:
         BOOL bFullScreen;
         CRect rectFullScreen;
@@ -176,7 +190,9 @@ public:
     afx_msg void OnBnClickedSetParameterButton();       // ch:设置参数 | en:Exit from upper right corner
   
     afx_msg void OnClose();
-
+public:
+    virtual LRESULT DefWindowProc(UINT message, WPARAM wParam, LPARAM lParam);
+    void OnMyEvent(UINT message, WPARAM wParam, LPARAM lParam);
 public:
     virtual BOOL PreTranslateMessage(MSG* pMsg);
     int GrabThreadProcess();
@@ -208,17 +224,16 @@ public:
     afx_msg void OnDblclkDisplayStatic();
     afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
     void showFullScreen(int u);
+    void ReadIni();
     //set roi
-    BOOL m_draw_rect;
-    CRect rect_view;
-    CPoint down_point;
-    CRect make_rect;
-    CString m_edit_show;
-    CRect rect_rect;
-    CStatic m_showRectangle;
-    CRect m_rect;
-//#define SETROI 
+
+///#define SETROI 
+#ifdef SETROI
     afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
     afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
     afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+#endif
+    BOOL DoRegisterDeviceInterface();
+
+
 };

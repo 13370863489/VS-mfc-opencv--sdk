@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>BasicDemo</ProjectName>
+    <ProjectName>中海岸视觉</ProjectName>
     <ProjectGuid>{96B023D7-3943-460A-B18D-4BFAF9C60F39}</ProjectGuid>
     <RootNamespace>BasicDemo</RootNamespace>
     <Keyword>MFCProj</Keyword>
@@ -222,7 +222,7 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>MvCameraControl.lib;opencv_world340d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>MvCameraControl.lib;opencv_world340.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).exe</OutputFile>
       <AdditionalLibraryDirectories>$(MVCAM_COMMON_RUNENV)\Libraries\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -237,6 +237,7 @@
     <ClCompile Include="BasicDemoDlg.cpp" />
     <ClCompile Include="CvvImage.cpp" />
     <ClCompile Include="MvCamera.cpp" />
+    <ClCompile Include="SoftKey.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -252,10 +253,13 @@
     <ClInclude Include="BasicDemo.h" />
     <ClInclude Include="BasicDemoDlg.h" />
     <ClInclude Include="CvvImage.h" />
+    <ClInclude Include="KeyDef.h" />
     <ClInclude Include="MvCamera.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="SoftKey.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="UKey.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="BasicDemo.rc" />

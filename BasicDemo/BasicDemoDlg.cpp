@@ -10,7 +10,9 @@
 #include <locale> 
 #include <atlimage.h>
 #include <iostream>  
-
+#include "SoftKey.h"
+#include <afxwin.h>
+#include <Dbt.h>
 using namespace std;
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -163,6 +165,8 @@ BOOL CBasicDemoDlg::OnInitDialog()
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
 
+
+    ReadIni();
 	CMenu* pSysMenu = GetSystemMenu(FALSE);
 	if (pSysMenu != NULL)
 	{
@@ -176,6 +180,11 @@ BOOL CBasicDemoDlg::OnInitDialog()
 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
 		}
 	}
+    //CWnd* pControl = GetDlgItem(IDC_STATIC_video);
+    //pControl->GetWindowRect(&rect_view);    //获得子控件的屏幕坐标；     
+    //this->ScreenToClient(&rect_view);   //子控件屏幕坐标映射到控件客户区；且这里一定要用this
+    //InvalidateRect(&rect_view, TRUE);  //刷新控件区域
+    //rect_rect = rect_view;
 
 	// Set the icon for this dialog.  The framework does this automatically
 	//  when the application's main window is not a dialog
@@ -183,20 +192,95 @@ BOOL CBasicDemoDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	DisplayWindowInitial();     // ch:显示框初始化 | en:Display Window Initialization
-   
+    m_draw_rect = FALSE;
     InitializeCriticalSection(&m_hSaveImageMux);
     CRect rect;
     GetClientRect(&rect);//取客户区大小
     Old.x = rect.right - rect.left;
     Old.y = rect.bottom - rect.top;
+
     m_Threshold = 30;
     m_maxvalue = 200;
+    bFullScreen = false;
+    //设置字体
     static CFont Bfont;
-    Bfont.CreatePointFont(220, _T("宋体"));
+    Bfont.CreatePointFont(300, _T("宋体"));
     GetDlgItem(IDC_BUTTON_showerror)->SetFont(&Bfont);
+    //查询加密狗
+ ///////////////////////////////////////////////////////////////////////////////////	
+     //这个用于判断系统中是否存在着加密锁。不需要是指定的加密锁,
+    if (ytsoftkey.FindPort(0, DevicePath) != 0)
+    {
+        MessageBox(L"未找到加密锁,请插入加密锁后，再进行操作。", TEXT("错误"), MB_OK | MB_ICONERROR);
+        PostQuitMessage(0);
+    }
+    if (!DoRegisterDeviceInterface())
+        MessageBox(L"注册事件通知失败。", TEXT("错误"), MB_OK | MB_ICONERROR );//'注册加密锁事件插拨通知
+//////////////////////////////////////////////////////////////////////////////////////
+    ChickKey();
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
+void CBasicDemoDlg::ChickKey()
+{
+    //使用普通算法一来检查是否存在指定的加密锁
+    if (ytsoftkey.CheckKeyByFindort_2() == 0 && ytsoftkey.CheckKeyByReadEprom() ==0 && ytsoftkey.CheckKeyByEncstring() == 0 && ytsoftkey.CheckKeyByEncstring_New() ==0)
+        WriteLog(L"成功找到加密锁；");
+        //MessageBox(L"找到指定的加密锁", TEXT("错误"), MB_OK | MB_ICONINFORMATION);
+    else
+    {
+        MessageBox(L"未能找到指定的加密锁", TEXT("错误"), MB_OK | MB_ICONERROR);
+        exit(0);
+    }
 
+   
+}
+/*
+LPCTSTR lpAppName; //是INI文件中的一个字段名.
+
+LPCTSTR lpKeyName;//是lpAppName下的一个键名,通俗讲就是变量名.
+
+INT nDefault; //如果INI文件中没有前两个参数指定的字段名或键名,则将此值赋给变量.
+
+LPCTSTR lpFileName;//是完整的INI文件名.
+*/
+void CBasicDemoDlg::ReadIni()
+{
+    CString str;
+    CFileFind finder;   //查找是否存在ini文件，若不存在，则生成一个新的默认设置的ini文件，这样就保证了我们更改后的设置每次都可用  
+    BOOL ifFind = finder.FindFile(_T("config.ini"));
+    if (!ifFind)
+    {
+        MessageBox(L"no config.ini file");
+    }
+    GetPrivateProfileString(_T("config"), _T("LOG"), CString("-1"), str.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));    
+  
+    m_WriteLog = (str == "1")?TRUE:FALSE;
+  
+}
+BOOL CBasicDemoDlg::DoRegisterDeviceInterface()
+{
+    HDEVNOTIFY hDevNotify;
+    GUID hid_guid = { 0x4D1E55B2,0xF16F,0x11CF,0x88,0xCB,0x00,0x11,0x11,0x00,0x00,0x30
+    };
+    DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
+
+    ZeroMemory(&NotificationFilter, sizeof(NotificationFilter));
+    NotificationFilter.dbcc_size =
+        sizeof(DEV_BROADCAST_DEVICEINTERFACE);
+    NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+    NotificationFilter.dbcc_classguid = hid_guid;
+    hDevNotify = RegisterDeviceNotification(m_hWnd,
+        &NotificationFilter,
+        DEVICE_NOTIFY_WINDOW_HANDLE
+    );
+
+    if (!hDevNotify)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+}
 void CBasicDemoDlg::OnSysCommand(UINT nID, LPARAM lParam)
 {
 	if ((nID & 0xFFF0) == IDM_ABOUTBOX)
@@ -266,6 +350,14 @@ int CBasicDemoDlg::EnableControls(BOOL bIsCameraReady)
     GetDlgItem(IDC_CONTINUS_MODE_RADIO)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
     GetDlgItem(IDC_TRIGGER_MODE_RADIO)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
 
+    GetDlgItem(IDC_BUTTON_Threshold)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_BUTTON_maxvalue)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_BUTTON_save)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_BUTTON_DIFF)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_BUTTON_toleft)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_BUTTON_toright)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_EDIT_Threshold)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_EDIT_maxvalue)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     return MV_OK;
 }
 
@@ -894,6 +986,7 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
     else
     {
         printf("unsupported pixel format\n");
+        MessageBox(L"视频格式不对，需要调整到RGB8.");
         return false;
     }
 
@@ -909,12 +1002,12 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
        
         if (showdiff)
         {
-            src = &IplImage(img_file);
+           
            
             //如果是第一帧，需要申请内存，并初始化
             if (nFrmNum == 0)
             {
-
+                
                 pBkImg = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
                 pFrImg = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
                 pFrImgSec = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
@@ -923,8 +1016,8 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
             }
             else //是否进行播放，而不进行检测
             {
-                
-                //pFrImg为当前帧的灰度图
+                orgPic = srcImage;
+                //pFrImg为当前帧的灰度图   
                 cvCvtColor(&IplImage(srcImage) , pFrImg, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
                 cvCvtColor(src, pFrImgSec, CV_BGR2GRAY);
                 WriteLog(L"图像做差");
@@ -1083,9 +1176,9 @@ int CBasicDemoDlg::GrabThreadProcess()
     }
     catch (Exception ex)
     {
-        CBasicDemoDlg lg = new CBasicDemoDlg();
+   //     CBasicDemoDlg lg = new CBasicDemoDlg();
         CString cstr(ex.msg.c_str());
-        lg.WriteLog(L"ERROR:  " + __LINE__ +  cstr);
+        WriteLog(L"ERROR:  " + __LINE__ +  cstr);
     }
     return MV_OK;
 }
@@ -1470,6 +1563,7 @@ void CBasicDemoDlg::OnClose()
     CloseDevice();
 
     DeleteCriticalSection(&m_hSaveImageMux);
+    exit(0);
     CDialog::OnClose();
 }
 
@@ -1543,7 +1637,9 @@ bool CBasicDemoDlg::RemoveCustomPixelFormats(enum MvGvspPixelType enPixelFormat)
 void CBasicDemoDlg::OnBnClickedButtonDiff()
 {
     showdiff = !showdiff;
+
     img_file = imread("1.bmp");
+    src = &IplImage(img_file);
  //   buf = NULL;
     // temporary images    
   ///  mhi = NULL; // 运动历史图像//MHI   
@@ -1554,35 +1650,43 @@ void CBasicDemoDlg::OnBnClickedButtonDiff()
 
 void CBasicDemoDlg::resize()
 {
-    float fsp[2];
-    POINT Newp; //获取现在对话框的大小
-    CRect recta;
-    GetClientRect(&recta);     //取客户区大小  
-    Newp.x = recta.right - recta.left;
-    Newp.y = recta.bottom - recta.top;
-    fsp[0] = (float)Newp.x / Old.x;
-    fsp[1] = (float)Newp.y / Old.y;
-    CRect Rect;
-    int woc;
-    CPoint OldTLPoint, TLPoint; //左上角
-    CPoint OldBRPoint, BRPoint; //右下角
-    HWND  hwndChild = ::GetWindow(m_hWnd, GW_CHILD);  //列出所有控件  
-    while (hwndChild)
+    try
     {
-        woc = ::GetDlgCtrlID(hwndChild);//取得ID
-        GetDlgItem(woc)->GetWindowRect(Rect);
-        ScreenToClient(Rect);
-        OldTLPoint = Rect.TopLeft();
-        TLPoint.x = long(OldTLPoint.x * fsp[0]);
-        TLPoint.y = long(OldTLPoint.y * fsp[1]);
-        OldBRPoint = Rect.BottomRight();
-        BRPoint.x = long(OldBRPoint.x * fsp[0]);
-        BRPoint.y = long(OldBRPoint.y * fsp[1]);
-        Rect.SetRect(TLPoint, BRPoint);
-        GetDlgItem(woc)->MoveWindow(Rect, TRUE);
-        hwndChild = ::GetWindow(hwndChild, GW_HWNDNEXT);
+        float fsp[2];
+        POINT Newp; //获取现在对话框的大小
+        CRect recta;
+        GetClientRect(&recta);     //取客户区大小  
+        Newp.x = recta.right - recta.left;
+        Newp.y = recta.bottom - recta.top;
+        fsp[0] = (float)Newp.x / Old.x;
+        fsp[1] = (float)Newp.y / Old.y;
+        CRect Rect;
+        int woc;
+        CPoint OldTLPoint, TLPoint; //左上角
+        CPoint OldBRPoint, BRPoint; //右下角
+        HWND  hwndChild = ::GetWindow(m_hWnd, GW_CHILD);  //列出所有控件  
+        while (hwndChild)
+        {
+            woc = ::GetDlgCtrlID(hwndChild);//取得ID
+            GetDlgItem(woc)->GetWindowRect(Rect);
+            ScreenToClient(Rect);
+            OldTLPoint = Rect.TopLeft();
+            TLPoint.x = long(OldTLPoint.x * fsp[0]);
+            TLPoint.y = long(OldTLPoint.y * fsp[1]);
+            OldBRPoint = Rect.BottomRight();
+            BRPoint.x = long(OldBRPoint.x * fsp[0]);
+            BRPoint.y = long(OldBRPoint.y * fsp[1]);
+            Rect.SetRect(TLPoint, BRPoint);
+            GetDlgItem(woc)->MoveWindow(Rect, TRUE);
+            hwndChild = ::GetWindow(hwndChild, GW_HWNDNEXT);
+        }
+        Old = Newp;
     }
-    Old = Newp;
+    catch (Exception ex)
+    {
+        CString cstr(ex.msg.c_str());
+        WriteLog(cstr);
+    }
 
 }
 void CBasicDemoDlg::OnSize(UINT nType, int cx, int cy)
@@ -1597,17 +1701,24 @@ void CBasicDemoDlg::OnSize(UINT nType, int cx, int cy)
 
 void CBasicDemoDlg::WriteLog( CString msg)
 {
+    CString filename;
+   
     try
     {
+        if (!m_WriteLog)
+            return;
+        CTime tt = CTime::GetCurrentTime();
+        filename =L"./log/" + tt.Format("%Y-%m-%d") + L".log";
         setlocale(LC_CTYPE, ("chs"));
         //设置文件的打开参数
-        CStdioFile outFile(L"log.log", CFile::modeNoTruncate | CFile::modeCreate | CFile::modeWrite | CFile::typeText);
+
+        CStdioFile outFile(filename, CFile::modeNoTruncate | CFile::modeCreate | CFile::modeWrite | CFile::typeText);
         CString msLine;
-        CTime tt = CTime::GetCurrentTime();
+      
 
         //作为Log文件，经常要给每条Log打时间戳，时间格式可自由定义，
-        //这里的格式如：2010-June-10 Thursday, 15:58:12
-        msLine = tt.Format("[%Y-%B-%d %A, %H:%M:%S] ") + msg;
+        //这里的格式如：2010-8-10 Thursday, 15:58:12
+        msLine = tt.Format("[%Y-%m-%d %A, %H:%M:%S] ") + msg;
         msLine += "\n\n";
 
         //在文件末尾插入新纪录
@@ -1669,7 +1780,18 @@ void CBasicDemoDlg::OnBnClickedButtonsave()
 {
     // TODO: 在此添加控件通知处理程序代码
   //  OnPictureSave(IDC_STATIC); //用这个方法保存picture control里面的图片像素太低，影响太大
-    cv::imwrite("1.bmp", srcImage);  //写入图片srcImage 
+    try
+    {
+
+        m_rotate = 3;
+        Sleep(200);  //给点恢复现场的时间
+        cv::imwrite("1.bmp", orgPic);  //写入图片srcImage 
+    }
+    catch (Exception ex)
+    {
+        CString cstr(ex.msg.c_str());
+        WriteLog(cstr);
+    }
 }
 
 
@@ -1800,6 +1922,7 @@ void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
         lpMMI->ptMaxPosition.y = rectFullScreen.top;
         lpMMI->ptMaxTrackSize.x = rectFullScreen.Width();
         lpMMI->ptMaxTrackSize.y = rectFullScreen.Height();
+       // MessageBox(L"OnGetMinMaxInfo");
     }
 
     CDialog::OnGetMinMaxInfo(lpMMI);
@@ -1893,3 +2016,53 @@ void CBasicDemoDlg::OnMouseMove(UINT nFlags, CPoint point)
     CDialog::OnMouseMove(nFlags, point);
 }
 #endif
+
+
+
+VOID CBasicDemoDlg::OnMyEvent(UINT message, WPARAM wParam, LPARAM lParam)
+{
+
+    switch (message) {
+
+    case WM_DEVICECHANGE:
+        switch (wParam)
+        {
+            PDEV_BROADCAST_HDR broadcastHdr;
+
+        case DBT_DEVICEARRIVAL:
+
+            broadcastHdr = (PDEV_BROADCAST_HDR)lParam;
+
+            if (DBT_DEVTYP_DEVICEINTERFACE == broadcastHdr->dbch_devicetype)
+            {
+                //if(ytsoftkey.CheckKeyByFindort_2()==0) AfxMessageBox("加密锁被插入。");
+            }
+            break;
+
+        case DBT_DEVICEREMOVEPENDING:
+        case DBT_DEVICEREMOVECOMPLETE://收到硬件拨出信息后，调用检查锁函数来检查是否锁被拨出
+        {
+            //这里使用 CheckKeyByFindort_2检查加密锁是否被拨出，也可以使用其它检查锁函数来检查加密锁是否被拨出
+            if (ytsoftkey.CheckKeyByFindort_2() != 0)
+            {
+                MessageBox(L"加密锁被拨出。程序退出！",TEXT("错误"), MB_OK | MB_ICONERROR);
+                OnClose();
+            }
+              
+
+        }
+        break;
+
+        default:
+            break;
+        }
+    default:
+        break;
+    }
+}
+LRESULT CBasicDemoDlg::DefWindowProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+    // TODO: 在此添加专用代码和/或调用基类
+    OnMyEvent(message, wParam, lParam);
+    return CDialog::DefWindowProc(message, wParam, lParam);
+}
