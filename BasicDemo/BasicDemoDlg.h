@@ -90,6 +90,8 @@ private:
     const double MAX_TIME_DELTA = 0.5;
     const double MIN_TIME_DELTA = 0.05;
     CvMemStorage* storage; // temporary storage 
+    bool isDiffScFull = false;  //缺陷窗口最大化状态
+
 /*ch:内部函数 | en:Built-in function*/
 private:
     /*ch:最开始时的窗口初始化 | en:Window initialization*/
@@ -203,6 +205,20 @@ public:
     afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
     CStatic m_videoWnd;
     afx_msg void OnDblclkStaticVideo();
-    afx_msg void OnStnDblclickDisplayStatic();
+    afx_msg void OnDblclkDisplayStatic();
     afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
+    void showFullScreen(int u);
+    //set roi
+    BOOL m_draw_rect;
+    CRect rect_view;
+    CPoint down_point;
+    CRect make_rect;
+    CString m_edit_show;
+    CRect rect_rect;
+    CStatic m_showRectangle;
+    CRect m_rect;
+//#define SETROI 
+    afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+    afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+    afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 };

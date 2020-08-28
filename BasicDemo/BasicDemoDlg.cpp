@@ -107,11 +107,11 @@ BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
     ON_BN_CLICKED(IDC_SET_PARAMETER_BUTTON, &CBasicDemoDlg::OnBnClickedSetParameterButton)
     ON_BN_CLICKED(IDC_SOFTWARE_TRIGGER_CHECK, &CBasicDemoDlg::OnBnClickedSoftwareTriggerCheck)
     ON_BN_CLICKED(IDC_SOFTWARE_ONCE_BUTTON, &CBasicDemoDlg::OnBnClickedSoftwareOnceButton)
-    ON_BN_CLICKED(IDC_SAVE_BMP_BUTTON, &CBasicDemoDlg::OnBnClickedSaveBmpButton)
-    ON_BN_CLICKED(IDC_SAVE_JPG_BUTTON, &CBasicDemoDlg::OnBnClickedSaveJpgButton)
+  /*  ON_BN_CLICKED(IDC_SAVE_BMP_BUTTON, &CBasicDemoDlg::OnBnClickedSaveBmpButton)
+    ON_BN_CLICKED(IDC_SAVE_JPG_BUTTON, &CBasicDemoDlg::OnBnClickedSaveJpgButton)*/
     ON_WM_CLOSE()
-    ON_BN_CLICKED(IDC_SAVE_TIFF_BUTTON, &CBasicDemoDlg::OnBnClickedSaveTiffButton)
-    ON_BN_CLICKED(IDC_SAVE_PNG_BUTTON, &CBasicDemoDlg::OnBnClickedSavePngButton)
+ /*   ON_BN_CLICKED(IDC_SAVE_TIFF_BUTTON, &CBasicDemoDlg::OnBnClickedSaveTiffButton)
+    ON_BN_CLICKED(IDC_SAVE_PNG_BUTTON, &CBasicDemoDlg::OnBnClickedSavePngButton)*/
     ON_BN_CLICKED(IDC_BUTTON_DIFF, &CBasicDemoDlg::OnBnClickedButtonDiff)
     ON_WM_SIZE()
     ON_BN_CLICKED(IDC_BUTTON_save, &CBasicDemoDlg::OnBnClickedButtonsave)
@@ -121,8 +121,13 @@ BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
     ON_BN_CLICKED(IDC_BUTTON_toright, &CBasicDemoDlg::OnBnClickedButtontoright)
     ON_WM_LBUTTONDBLCLK()
     ON_STN_DBLCLK(IDC_STATIC_video, &CBasicDemoDlg::OnDblclkStaticVideo)
-    ON_STN_DBLCLK(IDC_DISPLAY_STATIC, &CBasicDemoDlg::OnStnDblclickDisplayStatic)
+    ON_STN_DBLCLK(IDC_DISPLAY_STATIC, &CBasicDemoDlg::OnDblclkDisplayStatic)
     ON_WM_GETMINMAXINFO()
+#ifdef SETROI
+    ON_WM_LBUTTONDOWN()
+    ON_WM_LBUTTONUP()
+    ON_WM_MOUSEMOVE()
+#endif
 END_MESSAGE_MAP()
 
 // ch:取流线程 | en:Grabbing thread
@@ -249,10 +254,10 @@ int CBasicDemoDlg::EnableControls(BOOL bIsCameraReady)
     GetDlgItem(IDC_STOP_GRABBING_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
     GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->EnableWindow((m_bStartGrabbing && m_bSoftWareTriggerCheck && ((CButton *)GetDlgItem(IDC_TRIGGER_MODE_RADIO))->GetCheck())? TRUE : FALSE);
-    GetDlgItem(IDC_SAVE_BMP_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    /*GetDlgItem(IDC_SAVE_BMP_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_SAVE_TIFF_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_SAVE_PNG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
-    GetDlgItem(IDC_SAVE_JPG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_SAVE_JPG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);*/
     GetDlgItem(IDC_EXPOSURE_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
     GetDlgItem(IDC_GAIN_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
     GetDlgItem(IDC_FRAME_RATE_EDIT)->EnableWindow(m_bOpenDevice ? TRUE : FALSE);
@@ -905,19 +910,20 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
         if (showdiff)
         {
             src = &IplImage(img_file);
-            nFrmNum++;
+           
             //如果是第一帧，需要申请内存，并初始化
-            if (nFrmNum == 1)
+            if (nFrmNum == 0)
             {
 
                 pBkImg = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
                 pFrImg = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
                 pFrImgSec = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
                // pBkImgTran = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
-
+                nFrmNum = 1;
             }
             else //是否进行播放，而不进行检测
             {
+                
                 //pFrImg为当前帧的灰度图
                 cvCvtColor(&IplImage(srcImage) , pFrImg, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
                 cvCvtColor(src, pFrImgSec, CV_BGR2GRAY);
@@ -967,15 +973,12 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
                 
             }
         }
-        //图像旋转
-/*
-ROTATE_90_CLOCKWISE = 0, //!<Rotate 90 degrees clockwise
-ROTATE_180 = 1, //!<Rotate 180 degrees clockwise
-ROTATE_90_COUNTERCLOCKWISE = 2, //!<Rotate 270 degrees clockwise
-*/
-        
-        rotate(srcImage, srcImage, m_rotate);
-        DrawPicToHDC(&(IplImage(srcImage)), IDC_STATIC_video);
+        //图像旋转 
+        if (!isDiffScFull)  //如果右侧全屏，则停止显示左侧图像
+        {
+            rotate(srcImage, srcImage, m_rotate);
+            DrawPicToHDC(&(IplImage(srcImage)), IDC_STATIC_video);  //左侧窗口
+        }
         finish = clock();
         duration = (double)(finish - start) / CLOCKS_PER_SEC;
         CString str;
@@ -1093,7 +1096,7 @@ int CBasicDemoDlg::GrabThreadProcess()
 void CBasicDemoDlg::OnBnClickedEnumButton()
 {
     CString strMsg;
-
+    CString strIndex;
     m_ctrlDeviceCombo.ResetContent();
     memset(&m_stDevList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
 
@@ -1138,6 +1141,7 @@ void CBasicDemoDlg::OnBnClickedEnumButton()
                 MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
             }
             strMsg.Format(_T("[%d]GigE:    %s  (%d.%d.%d.%d)"), i, pUserName, nIp1, nIp2, nIp3, nIp4);
+            strIndex.Format(_T("[%d]号相机"), i);
         }
         else if (pDeviceInfo->nTLayerType == MV_USB_DEVICE)
         {
@@ -1158,12 +1162,13 @@ void CBasicDemoDlg::OnBnClickedEnumButton()
                 MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
             }
             strMsg.Format(_T("[%d]UsbV3:  %s"), i, pUserName);
+            strIndex.Format(_T("[%d]号相机"), i);
         }
         else
         {
             ShowErrorMsg(TEXT("Unknown device enumerated"), 0);;
         }
-        m_ctrlDeviceCombo.AddString(strMsg);
+        m_ctrlDeviceCombo.AddString(strIndex);
 
         if (pUserName)
         {
@@ -1262,6 +1267,7 @@ void CBasicDemoDlg::OnBnClickedStartGrabbingButton()
     {
         return;
     }
+    nFrmNum = 0;
 
     memset(&m_stImageInfo, 0, sizeof(MV_FRAME_OUT_INFO_EX));
     m_bThreadState = TRUE;
@@ -1541,7 +1547,7 @@ void CBasicDemoDlg::OnBnClickedButtonDiff()
  //   buf = NULL;
     // temporary images    
   ///  mhi = NULL; // 运动历史图像//MHI   
-    nFrmNum = 0;
+   
    /* if (srcImage.size() != 0)
         srcImage.release();*/
 }
@@ -1708,7 +1714,6 @@ void CBasicDemoDlg::OnBnClickedButtontoright()
 void CBasicDemoDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
-
     CDialog::OnLButtonDblClk(nFlags, point);
 }
 
@@ -1716,8 +1721,30 @@ void CBasicDemoDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 void CBasicDemoDlg::OnDblclkStaticVideo()
 {
     // TODO: 在此添加控件通知处理程序代码
+    if (showdiff)
+        showdiff = !showdiff;
+    showFullScreen(IDC_STATIC_video);
+  
+}
+
+
+void CBasicDemoDlg::OnDblclkDisplayStatic()
+{
+    // TODO: 在此添加控件通知处理程序代码
+   
+    if (showdiff)
+    {
+        isDiffScFull = true;
+        showFullScreen(IDC_DISPLAY_STATIC);
+    }
+   
+   
+}
+void CBasicDemoDlg::showFullScreen(int u)
+{
     if (!bFullScreen)
     {
+      
         bFullScreen = true;
 
         //获取系统屏幕宽高
@@ -1726,7 +1753,7 @@ void CBasicDemoDlg::OnDblclkStaticVideo()
 
         //用m_struOldWndpl得到当前窗口的显示状态和窗体位置，以供退出全屏后使用
         GetWindowPlacement(&m_struOldWndpl);
-        GetDlgItem(IDC_STATIC_video)->GetWindowPlacement(&m_struOldWndpPic);
+        GetDlgItem(u)->GetWindowPlacement(&m_struOldWndpPic);
 
         //计算出窗口全屏显示客户端所应该设置的窗口大小，主要为了将不需要显示的窗体边框等部分排除在屏幕外
         CRect rectWholeDlg;
@@ -1745,29 +1772,22 @@ void CBasicDemoDlg::OnDblclkStaticVideo()
         WINDOWPLACEMENT struWndpl;
         struWndpl.length = sizeof(WINDOWPLACEMENT);
         struWndpl.flags = 0;
-        struWndpl.showCmd = SW_SHOWNORMAL;
+        struWndpl.showCmd = SW_SHOW;
         struWndpl.rcNormalPosition = rectFullScreen;
         SetWindowPlacement(&struWndpl);//该函数设置指定窗口的显示状态和显示大小位置等，是我们该程序最为重要的函数
 
         //将PICTURE控件的坐标设为全屏大小
-        GetDlgItem(IDC_STATIC_video)->MoveWindow(CRect(0, 0, g_iCurScreenWidth, g_iCurScreenHeight));
+        GetDlgItem(u)->MoveWindow(CRect(0, 0, g_iCurScreenWidth, g_iCurScreenHeight));
     }
     else
     {
-        
+
         SetWindowPlacement(&m_struOldWndpl);
-        GetDlgItem(IDC_STATIC_video)->SetWindowPlacement(&m_struOldWndpPic);
+        GetDlgItem(u)->SetWindowPlacement(&m_struOldWndpPic);
         bFullScreen = false;
+        isDiffScFull = false;
     }
 }
-
-
-void CBasicDemoDlg::OnStnDblclickDisplayStatic()
-{
-    // TODO: 在此添加控件通知处理程序代码
-   
-}
-
 
 void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
@@ -1784,3 +1804,92 @@ void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 
     CDialog::OnGetMinMaxInfo(lpMMI);
 }
+#ifdef SETROI
+char arr[100];
+void CBasicDemoDlg::OnLButtonDown(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+
+    if (m_draw_rect == false && point.x > rect_view.left && point.y < rect_view.bottom && point.y > rect_view.top && point.x < rect_view.right)
+    {
+        down_point = point;
+        //  KillTimer(4);
+        make_rect.left = point.x;
+        make_rect.top = point.y;
+        sprintf(arr, "x:%d && y:%d\n\r", point.x, point.y);
+        //	MessageBox(arr);
+        m_edit_show = arr;
+        m_draw_rect = true;
+        UpdateData(FALSE);
+
+    }
+
+
+    CDialog::OnLButtonDown(nFlags, point);
+}
+
+
+void CBasicDemoDlg::OnLButtonUp(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+    if (m_draw_rect == true && point.x > rect_view.left && point.y < rect_view.bottom && point.y > rect_view.top && point.x < rect_view.right)
+    {
+        //	CPoint mouse_up = point;
+        m_draw_rect = false;
+        rect_rect = make_rect;
+        //SetTimer(4,10,NULL);
+    }
+    CDialog::OnLButtonUp(nFlags, point);
+}
+
+
+void CBasicDemoDlg::OnMouseMove(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+    if (m_draw_rect)
+    {
+        if (abs(point.x - down_point.x) > 10 || abs(point.y - down_point.y) > 10) //矩形区域过小则不处理
+        {
+            if (point.x <= rect_view.left)
+                make_rect.right = rect_view.left;
+            else
+                if (point.x >= rect_view.right)
+                    make_rect.right = rect_view.right;
+                else
+                    make_rect.right = point.x;
+
+            if (point.y <= rect_view.top)
+                make_rect.bottom = rect_view.top;
+            else
+                if (point.y >= rect_view.bottom)
+                    make_rect.bottom = rect_view.bottom;
+                else
+                    make_rect.bottom = point.y;
+            sprintf(arr, "\n\r\txx:%d $$ yy:%d\n\r", make_rect.right, make_rect.bottom);
+            m_edit_show += arr;
+            UpdateData(FALSE);
+            //	pFrame = cvQueryFrame( g_capture );
+                //CvvImage m_CvvImage;  
+                //m_CvvImage.CopyOf(pFrame,1); //复制该帧图像    
+                //m_CvvImage.DrawToHDC(hDC, &rect); //显示到设备的矩形框内
+                //pdc->Rectangle(m_rect);
+            //	InvalidateRect(&rect,false); //刷新控件区域
+            CDC* pdc = GetDlgItem(IDC_STATIC_video)->GetDC();// GetWindowDC();   
+            pdc->SelectStockObject(NULL_BRUSH);
+            SetRect(&m_rect, abs(make_rect.left - rect_view.left), abs(make_rect.top - rect_view.top), abs(make_rect.right - rect_view.left), abs(make_rect.bottom - rect_view.top));
+            //InvalidateRect(&rect,TRUE); //刷新控件区域
+            pdc->Rectangle(m_rect /*CRect( make_rect.left - rect_view.left , make_rect.top - rect_view.top , make_rect.right - rect_view.left , make_rect.bottom - rect_view.top )*/);
+            ReleaseDC(pdc);
+        }
+        else
+        {
+            make_rect.left = down_point.x;
+            make_rect.top = down_point.y;
+            make_rect.right = down_point.x + 10;
+            make_rect.bottom = down_point.y + 10;
+        }
+    }
+        //  CPoint mouse_up = point;
+    CDialog::OnMouseMove(nFlags, point);
+}
+#endif
