@@ -7,6 +7,8 @@
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+#include <core.hpp>
+using namespace cv;
 
 // used for CAboutDlg dialog in the "about" menu of the application 
 class CAboutDlg : public CDialog
@@ -190,7 +192,7 @@ void CForceIpDemoDlg::ShowErrorMsg(CString csMessage, int nErrorNum)
 void CForceIpDemoDlg::OnBnClickedEnumDeviceButton()
 {
     CString strMsg;
-
+    CString strIndex;
     // ch:清除设备列表框中的信息 | en:clear the information in the device list
     m_ctrlDeviceCombo.ResetContent();
 
@@ -242,6 +244,7 @@ void CForceIpDemoDlg::OnBnClickedEnumDeviceButton()
                 MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
             }
             strMsg.Format(_T("[%d]GigE:    %s  (%d.%d.%d.%d)"), i, pUserName, nIp1, nIp2, nIp3, nIp4);
+            strIndex.Format(_T("[%d]号相机 (%d.%d.%d.%d)"), i,nIp1, nIp2, nIp3, nIp4);
         }
         else if (pDeviceInfo->nTLayerType == MV_USB_DEVICE)
         {
@@ -262,11 +265,13 @@ void CForceIpDemoDlg::OnBnClickedEnumDeviceButton()
                 MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
             }
             strMsg.Format(_T("[%d]UsbV3:  %s"), i, pUserName);
+            strIndex.Format(_T("[%d]号Usb相机"), i);
         }
         else
         {
+            ShowErrorMsg(TEXT("Unknown device enumerated"), 0);;
         }
-        m_ctrlDeviceCombo.AddString(strMsg);
+        m_ctrlDeviceCombo.AddString(strIndex);
         if (pUserName)
         {
             delete[] pUserName;
@@ -341,17 +346,28 @@ void CForceIpDemoDlg::OnCbnSelchangeDeviceCombo()
 int CForceIpDemoDlg::DisplayDeviceIp()
 {
     int nIndex = m_nDeviceCombo;
+    if (m_stDevList.nDeviceNum == 0)
+    {
+       // ShowErrorMsg(TEXT("没有查到相机！"), 0);
+        return -1;
+    }
     if ((nIndex < 0) | (nIndex >= MV_MAX_DEVICE_NUM))
     {
         ShowErrorMsg(TEXT("Please select device"), 0);
         return -1;
     }
-    m_dwIpaddress = m_stDevList.pDeviceInfo[nIndex]->SpecialInfo.stGigEInfo.nCurrentIp;
+    try
+    {
+        m_dwIpaddress = m_stDevList.pDeviceInfo[nIndex]->SpecialInfo.stGigEInfo.nCurrentIp;
     m_dwNetworkMask = m_stDevList.pDeviceInfo[nIndex]->SpecialInfo.stGigEInfo.nCurrentSubNetMask;
-    m_dwDefaultGateway  = m_stDevList.pDeviceInfo[nIndex]->SpecialInfo.stGigEInfo.nDefultGateWay;
+    m_dwDefaultGateway = m_stDevList.pDeviceInfo[nIndex]->SpecialInfo.stGigEInfo.nDefultGateWay;
 
     UpdateData(FALSE);
-
+    }
+    catch (Exception ex)
+    {
+        MessageBox(L"相机错误！可能是没有搜索到相机");
+   }
     return 0;
 }
 

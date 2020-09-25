@@ -7,6 +7,7 @@
 #define IDS_ABOUTBOX                    101
 #define IDD_BasicDemo_DIALOG            102
 #define IDR_MAINFRAME                   128
+#define IDR_ACCELERATOR1                131
 #define IDC_ENUM_BUTTON                 1000
 #define IDC_OPEN_BUTTON                 1001
 #define IDC_CLOSE_BUTTON                1002
@@ -44,14 +45,19 @@
 #define IDC_BUTTON_toright              1042
 #define IDC_STATIC_dirty                1043
 #define IDC_STATIC_video                1044
+#define IDC_SPIN1                       1045
+#define IDC_EDIT1                       1046
+#define IDC_STATIC_delay                1048
+#define ID_add                          32771
+#define ID_subtract                     32772
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        131
-#define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1045
+#define _APS_NEXT_RESOURCE_VALUE        132
+#define _APS_NEXT_COMMAND_VALUE         32774
+#define _APS_NEXT_CONTROL_VALUE         1049
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

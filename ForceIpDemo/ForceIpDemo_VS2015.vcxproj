@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>ForceIpDemo</ProjectName>
+    <ProjectName>IP修改器</ProjectName>
     <ProjectGuid>{E9672AA6-12A8-4A6E-99EF-6953629F38A7}</ProjectGuid>
     <RootNamespace>ForceIpDemo</RootNamespace>
     <Keyword>MFCProj</Keyword>

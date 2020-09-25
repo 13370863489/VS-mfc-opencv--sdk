@@ -31,6 +31,12 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
+
+	afx_msg void OnPicLButtonDown(UINT nFlags, CPoint point);
+	afx_msg void OnPicLButtonUp(UINT nFlags, CPoint point);
+	afx_msg void OnPicMouseMove(UINT nFlags, CPoint point);
+	afx_msg BOOL OnPicEraseBkgnd(CDC* pDC);
+	afx_msg void OnPicNcLButtonDblClk(UINT nHitTest, CPoint point);
 	DECLARE_MESSAGE_MAP()
 
 /*ch:控件对应变量 | en:Control corresponding variable*/
@@ -61,8 +67,7 @@ private:
     double  m_dFrameRateEdit;   
     CButton m_ctrlGetParameterButton;           // ch:获取参数 | en:Get parameter
     CButton m_ctrlSetParameterButton;           // ch:设置参数 | en:Set parameter
-    int m_Height;
-    int m_Width;
+   
     /*ch:设备显示下拉框 | en:Device display drop-down box*/
     CComboBox m_ctrlDeviceCombo;                // ch:枚举到的设备 | en:Enumerated device
     int      m_nDeviceCombo;
@@ -71,9 +76,14 @@ private:
     int nFrmNum = 0;
     cv::Mat img_file;
     cv::Mat orgPic;
-    IplImage* pFrImg;     //pFrImg为当前帧的灰度图
-    IplImage* pFrImgSec;
-    IplImage* pBkImg;     //pBkImg为当前背景灰度图 
+    //IplImage* pFrImg;     //pFrImg为当前帧的灰度图
+    //IplImage* pFrImgSec;
+    //IplImage* pBkImg;     //pBkImg为当前背景灰度图 
+    cv::Mat srcImageGray;     //pFrImg为当前帧的灰度图
+    cv::Mat bmpImgGray;
+    cv::Mat diffImgGray;     //pBkImg为当前背景灰度图 
+    cv::Mat src;
+
     cv::Mat imresult;
     IplImage* pBkImgTran;    //
     IplImage* pFrImgTran;
@@ -86,7 +96,7 @@ private:
     IplImage* segmask = NULL; // motion segmentation map   
  //   IplImage* pBkImg = NULL;
     IplImage* motion = NULL;
-    IplImage* src;
+  
     void resize();
     const double MHI_DURATION = 0.5;
     const double MAX_TIME_DELTA = 0.5;
@@ -227,13 +237,41 @@ public:
     void ReadIni();
     //set roi
 
-///#define SETROI 
+#define SETROI 
 #ifdef SETROI
-    afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
-    afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
-    afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	CPoint m_StartPoint;//开始点
+
+	CPoint m_EndPoint;//结束点
+
+	BOOL m_bLBDown = FALSE;//鼠标是否按下
 #endif
     BOOL DoRegisterDeviceInterface();
 
+    CRect rc;
+	CPoint startPoint;  //矩形起始点坐标（左上角点）     
+	CPoint endPoint;    //矩形终点坐标 （右下角点）
+	double scale = 1.0;   //矩形缩放比例，初始比例1.0
+	BOOL moveFlag = FALSE;
+    int m_picHeight;
+    int m_picWeight;
+    IplImage* TheImage;
+    afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
+    void ResizeImage(cv::Mat img);
+    void ShowImage(cv::Mat img, UINT ID);
+    void MatToCImage(cv::Mat mat, ATL::CImage& cimage);
+    void HideControls();
+    CRect picRect;
+    CWnd* pWnd = NULL;
 
+
+    // 设置延迟拍照时间
+    CString m_editDelay;
+    CSpinButtonCtrl m_SpinDelay;
+    //int m_edt_DelayValue;
+    afx_msg void OnDeltaposSpin1(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnChangeEdit1();
+    void selectCamera();
+    CStatic m_diff_display;
+    HACCEL   m_hAccel;
+    float h_w_float;
 };

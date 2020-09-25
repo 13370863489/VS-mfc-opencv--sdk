@@ -42,6 +42,7 @@ CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 {
+
 	CDialog::DoDataExchange(pDX);
 }
 
@@ -71,6 +72,7 @@ CBasicDemoDlg::CBasicDemoDlg(CWnd* pParent /*=NULL*/)
     , use_time(_T(""))
     , m_Threshold(30)
     , m_maxvalue(200)
+    , m_editDelay(_T("0"))
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
     memset(&m_stImageInfo, 0, sizeof(MV_FRAME_OUT_INFO_EX));
@@ -91,6 +93,9 @@ void CBasicDemoDlg::DoDataExchange(CDataExchange* pDX)
     DDX_Text(pDX, IDC_EDIT_maxvalue, m_maxvalue);
     DDV_MinMaxDouble(pDX, m_maxvalue, 0, 255);
     DDX_Control(pDX, IDC_STATIC_video, m_videoWnd);
+    DDX_Text(pDX, IDC_EDIT1, m_editDelay);
+    DDX_Control(pDX, IDC_SPIN1, m_SpinDelay);
+    DDX_Control(pDX, IDC_DISPLAY_STATIC, m_diff_display);
 }
 
 BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
@@ -126,10 +131,17 @@ BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
     ON_STN_DBLCLK(IDC_DISPLAY_STATIC, &CBasicDemoDlg::OnDblclkDisplayStatic)
     ON_WM_GETMINMAXINFO()
 #ifdef SETROI
-    ON_WM_LBUTTONDOWN()
-    ON_WM_LBUTTONUP()
-    ON_WM_MOUSEMOVE()
+
+
+    ON_WM_MOUSEWHEEL()
+    ON_WM_NCLBUTTONDBLCLK(IDC_STATIC_video, &CBasicDemoDlg::OnPicNcLButtonDblClk)
+	ON_WM_LBUTTONDOWN(IDC_STATIC_video, &CBasicDemoDlg::OnPicLButtonDown)
+	ON_WM_LBUTTONUP(IDC_STATIC_video, &CBasicDemoDlg::OnPicLButtonUp)
+	ON_WM_MOUSEMOVE(IDC_STATIC_video, &CBasicDemoDlg::OnPicMouseMove)
+	ON_WM_ERASEBKGND(IDC_STATIC_video, &CBasicDemoDlg::OnPicEraseBkgnd)
 #endif
+    ON_NOTIFY(UDN_DELTAPOS, IDC_SPIN1, &CBasicDemoDlg::OnDeltaposSpin1)
+    ON_EN_CHANGE(IDC_EDIT1, &CBasicDemoDlg::OnChangeEdit1)
 END_MESSAGE_MAP()
 
 // ch:取流线程 | en:Grabbing thread
@@ -160,7 +172,7 @@ unsigned int __stdcall GrabThread(void* pUser)
 BOOL CBasicDemoDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
-
+   
 	// IDM_ABOUTBOX must be in the system command range.
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
@@ -180,10 +192,18 @@ BOOL CBasicDemoDlg::OnInitDialog()
 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
 		}
 	}
-    //CWnd* pControl = GetDlgItem(IDC_STATIC_video);
-    //pControl->GetWindowRect(&rect_view);    //获得子控件的屏幕坐标；     
-    //this->ScreenToClient(&rect_view);   //子控件屏幕坐标映射到控件客户区；且这里一定要用this
+    CWnd* pControl = GetDlgItem(IDC_STATIC_video);
+    pControl->GetWindowRect(&rect_view);    //获得子控件的屏幕坐标；     
+    this->ScreenToClient(&rect_view);   //子控件屏幕坐标映射到控件客户区；且这里一定要用this
     //InvalidateRect(&rect_view, TRUE);  //刷新控件区域
+   
+    //m_picHeight = rect_view.bottom - rect_view.top;
+   // m_picWeight = rect_view.right - rect_view.left;
+
+    m_bLBDown = false;
+
+
+  
     //rect_rect = rect_view;
 
 	// Set the icon for this dialog.  The framework does this automatically
@@ -198,7 +218,12 @@ BOOL CBasicDemoDlg::OnInitDialog()
     GetClientRect(&rect);//取客户区大小
     Old.x = rect.right - rect.left;
     Old.y = rect.bottom - rect.top;
-
+    //设置延迟拍照
+	int itemp = _ttoi(m_editDelay);
+	m_SpinDelay.SetBuddy(GetDlgItem(itemp));
+    m_SpinDelay.SetRange(0, 1000000);
+    //m_edt_DelayValue = 0;
+    //设置阈值
     m_Threshold = 30;
     m_maxvalue = 200;
     bFullScreen = false;
@@ -218,6 +243,13 @@ BOOL CBasicDemoDlg::OnInitDialog()
         MessageBox(L"注册事件通知失败。", TEXT("错误"), MB_OK | MB_ICONERROR );//'注册加密锁事件插拨通知
 //////////////////////////////////////////////////////////////////////////////////////
     ChickKey();
+    ShowWindow(SW_SHOWMAXIMIZED);  //最大化显示窗口
+	//m_hAccel_add = ::LoadAccelerators(AfxGetInstanceHandle(), MAKEINTRESOURCE("IDR_ACCELERATOR1"));
+    m_hAccel = LoadAccelerators(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDR_ACCELERATOR1));
+	//m_hAccel_sub = LoadAccelerators(AfxGetResourceHandle(), MAKEINTRESOURCE(L"ID_subtract"));
+
+    OnBnClickedEnumButton();
+
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
 void CBasicDemoDlg::ChickKey()
@@ -299,12 +331,40 @@ void CBasicDemoDlg::OnSysCommand(UINT nID, LPARAM lParam)
 //  this is automatically done for you by the framework.
 void CBasicDemoDlg::OnPaint()
 {
+    CRect prect;
+	m_videoWnd.GetClientRect(&prect);   //获取区域
+	FillRect(m_videoWnd.GetDC()->GetSafeHdc(), &prect, CBrush(RGB(50, 50, 50)));  //填充非图像区域为黑色
+    m_diff_display.GetClientRect(&prect);
+    FillRect(m_diff_display.GetDC()->GetSafeHdc(), &prect, CBrush(RGB(50, 50, 50)));  //填充非图像区域为黑色
+	CPaintDC dc(this);
+
+	//绘制背景   
+	CRect rect;
+	GetClientRect(&rect);
+
+	CBrush bruDB(RGB(255, 255, 255));//背景颜色  
+
+	dc.FillRect(&rect, &bruDB);
+
+	//绘制拖动矩形   
+	if (m_bLBDown)
+	{
+		CRect rect(m_StartPoint, m_EndPoint);
+
+		rect.NormalizeRect();//规范化矩形   
+
+		CBrush bruPen(RGB(255, 0, 0));//矩形边框颜色  
+
+		dc.FrameRect(&rect, &bruPen);
+	}
+
 	if (IsIconic())
 	{
 		CPaintDC dc(this); // device context for painting
 
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
-
+       
+      
 		// Center icon in client rectangle
 		int cxIcon = GetSystemMetrics(SM_CXICON);
 		int cyIcon = GetSystemMetrics(SM_CYICON);
@@ -358,6 +418,10 @@ int CBasicDemoDlg::EnableControls(BOOL bIsCameraReady)
     GetDlgItem(IDC_BUTTON_toright)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_EDIT_Threshold)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_EDIT_maxvalue)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_EDIT1)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_SPIN1)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    
+        
     return MV_OK;
 }
 
@@ -973,6 +1037,7 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
     clock_t start, finish;
     double  duration;
     double a;
+   
     start = clock();
     if (pstImageInfo->enPixelType == PixelType_Gvsp_Mono8)
     {
@@ -994,60 +1059,36 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
     {
         return false;
     }
+    srcImage = srcImage(Rect(startPoint.x, startPoint.y, endPoint.x, endPoint.y));
 
-
-    //save converted image in a local file
+    orgPic = srcImage;
     try {
-
-       
         if (showdiff)
-        {
-           
-           
-            //如果是第一帧，需要申请内存，并初始化
-            if (nFrmNum == 0)
-            {
-                
-                pBkImg = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
-                pFrImg = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
-                pFrImgSec = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
-               // pBkImgTran = cvCreateImage(cvSize(pstImageInfo->nWidth, pstImageInfo->nHeight), IPL_DEPTH_8U, 1);
-                nFrmNum = 1;
-            }
-            else //是否进行播放，而不进行检测
-            {
-                orgPic = srcImage;
-                //pFrImg为当前帧的灰度图   
-                cvCvtColor(&IplImage(srcImage) , pFrImg, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
-                cvCvtColor(src, pFrImgSec, CV_BGR2GRAY);
-                WriteLog(L"图像做差");
-                cvAbsDiff(pFrImg, pFrImgSec, pBkImg);    //图像做差
-                cvThreshold(pBkImg, pBkImg, m_Threshold,m_maxvalue, CV_THRESH_BINARY);  //进行阈值处理 二值化
-
-               // cvThreshold(pBkImg, pBkImg, 30, 1, CV_THRESH_BINARY);//将求差后图像利用阈值二值化 //and threshold it   
-                CvSize size = cvSize(pBkImg->width, pBkImg->height); // get current frame size   
-               // IplImage*  mhi = cvCreateImage(size, IPL_DEPTH_32F, 1);
-                imresult = cv::cvarrToMat(pBkImg);
+          {
+                cvtColor(srcImage , srcImageGray, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
+                cv::absdiff(srcImageGray, bmpImgGray,diffImgGray);    //图像做差
+                cv::threshold(diffImgGray, diffImgGray, m_Threshold,m_maxvalue, CV_THRESH_BINARY);  //进行阈值处理 二值化
+                 
                 // 4.腐蚀  
                 Mat kernel_erode = getStructuringElement(MORPH_RECT, Size(3, 3));
                 Mat kernel_dilate = getStructuringElement(MORPH_RECT, Size(18, 18));
-                erode(imresult, imresult, kernel_erode);
+                erode(diffImgGray, diffImgGray, kernel_erode);
                
                 // 5.膨胀  
                // dilate(imresult, imresult, kernel_dilate);
 
                 vector<vector<Point>> contours;
-                findContours(imresult, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+                findContours(diffImgGray, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
                 // 在result上绘制轮廓
-                drawContours(srcImage, contours, -1, Scalar(0, 200, 255), 2);  //原图上
+              //  drawContours(srcImage, contours, -1, Scalar(0, 200, 255), 2);  //原图上
                 // 7.查找正外接矩形  
-                vector<Rect> boundRect(contours.size());
-                for (int i = 0; i < contours.size(); i++)
-                {
-                    boundRect[i] = boundingRect(contours[i]);
-                    // 在result上绘制正外接矩形
-                    rectangle(srcImage, boundRect[i], Scalar(0, 255, 0), 2);  //在原图上画矩形
-                }
+                //vector<Rect> boundRect(contours.size());
+                //for (int i = 0; i < contours.size(); i++)
+                //{
+                //    boundRect[i] = boundingRect(contours[i]);
+                //    // 在result上绘制正外接矩形
+                //    rectangle(srcImage, boundRect[i], Scalar(0, 255, 0), 2);  //在原图上画矩形
+                //}
 
                 if (contours.size() >= 0)
                 {
@@ -1060,17 +1101,18 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
 
                 //update_mhi(pBkImg, motion, 30);
 
-                rotate(imresult, imresult, m_rotate);
+                rotate(diffImgGray, diffImgGray, m_rotate);
                 WriteLog(L"图像显示");
-                DrawPicToHDC(&(IplImage(imresult)), IDC_DISPLAY_STATIC);  // 显示处理图
-                
-            }
+               // DrawPicToHDC(&(IplImage(imresult)), IDC_DISPLAY_STATIC);  // 显示右侧处理图
+                ShowImage(diffImgGray, IDC_DISPLAY_STATIC);
+            //}
         }
         //图像旋转 
         if (!isDiffScFull)  //如果右侧全屏，则停止显示左侧图像
         {
             rotate(srcImage, srcImage, m_rotate);
-            DrawPicToHDC(&(IplImage(srcImage)), IDC_STATIC_video);  //左侧窗口
+            ShowImage(srcImage, IDC_STATIC_video);
+           // DrawPicToHDC(&(IplImage(srcImage)), IDC_STATIC_video);  //左侧窗口
         }
         finish = clock();
         duration = (double)(finish - start) / CLOCKS_PER_SEC;
@@ -1081,7 +1123,7 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
         CStatic * pStatic = (CStatic*)GetDlgItem(IDC_STATIC_time);
         pStatic->SetWindowText(str);
       
-        //srcImage.release();
+        srcImage.release();
         
     }
     catch (cv::Exception& ex) {
@@ -1089,14 +1131,151 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
           //  CBasicDemoDlg lg = new CBasicDemoDlg();
             CString cstr(ex.msg.c_str());
            WriteLog(L"ERROR:  " + __LINE__ + cstr);
-        
+         //  return false;
     }
 
    // srcImage.release();
 
     return true;
 }
+void CBasicDemoDlg::MatToCImage(cv::Mat mat, ATL::CImage& cimage)
+{
+    if (0 == mat.total())
+    {
+        return;
+    }
 
+
+    int nChannels = mat.channels();
+    if ((1 != nChannels) && (3 != nChannels))
+    {
+        return;
+    }
+    int nWidth = mat.cols;
+    int nHeight = mat.rows;
+
+
+    //重建cimage
+    cimage.Destroy();
+    cimage.Create(nWidth, nHeight, 8 * nChannels);
+
+
+    //拷贝数据
+
+
+    uchar* pucRow;                                    //指向数据区的行指针
+    uchar* pucImage = (uchar*)cimage.GetBits();        //指向数据区的指针
+    int nStep = cimage.GetPitch();                    //每行的字节数,注意这个返回值有正有负
+
+
+    if (1 == nChannels)                                //对于单通道的图像需要初始化调色板
+    {
+        RGBQUAD* rgbquadColorTable;
+        int nMaxColors = 256;
+        rgbquadColorTable = new RGBQUAD[nMaxColors];
+        cimage.GetColorTable(0, nMaxColors, rgbquadColorTable);
+        for (int nColor = 0; nColor < nMaxColors; nColor++)
+        {
+            rgbquadColorTable[nColor].rgbBlue = (uchar)nColor;
+            rgbquadColorTable[nColor].rgbGreen = (uchar)nColor;
+            rgbquadColorTable[nColor].rgbRed = (uchar)nColor;
+        }
+        cimage.SetColorTable(0, nMaxColors, rgbquadColorTable);
+        delete[]rgbquadColorTable;
+    }
+
+
+    for (int nRow = 0; nRow < nHeight; nRow++)
+    {
+        pucRow = (mat.ptr<uchar>(nRow));
+        for (int nCol = 0; nCol < nWidth; nCol++)
+        {
+            if (1 == nChannels)
+            {
+                *(pucImage + nRow * nStep + nCol) = pucRow[nCol];
+            }
+            else if (3 == nChannels)
+            {
+                for (int nCha = 0; nCha < 3; nCha++)
+                {
+                    *(pucImage + nRow * nStep + nCol * 3 + nCha) = pucRow[nCol * 3 + nCha];
+                }
+            }
+        }
+    }
+}   //图像转换 mattocimage
+/***
+showImage 为了实现按照比例显示图片
+*/
+void CBasicDemoDlg::ShowImage(cv::Mat img, UINT ID)// ID 是Picture Control控件的ID号     
+{
+   // CRect   rect;
+    ATL::CImage  q;
+    MatToCImage(img, q);
+   // CWnd* pWnd = NULL;
+	pWnd = GetDlgItem(ID);//获取控件句柄
+	pWnd->GetClientRect(&picRect);//获取Picture Control控件的客户区
+    float cx = img.cols;
+    float cy = img.rows;//获取图片的宽 高
+    float k = cy / cx;//获得图片的宽高比
+   
+    float dx = picRect.Width();
+    float dy = picRect.Height();//获得控件的宽高比
+    float t = dy / dx;//获得控件的宽高比 
+    if (k >= t)
+    {
+
+        picRect.right = floor(picRect.bottom / k);
+        picRect.left = (dx - picRect.right) / 2;
+        picRect.right = floor(picRect.bottom / k) + (dx - picRect.right) / 2;
+      //  picRect.right += 100;
+    }
+    else
+    {
+        picRect.bottom = floor(k * picRect.right);
+        picRect.top = (dy - picRect.bottom) / 2;
+        picRect.bottom = floor(k * picRect.right) + (dy - picRect.bottom) / 2;
+       // picRect.bottom += 100;
+    }
+    //相关的计算为了让图片在绘图区居中按比例显示，原理很好懂，如果图片很宽但是不高，就上下留有空白区；如果图片很高而不宽就左右留有空白区，并且保持两边空白区一样大
+    CDC* pDc = NULL;
+    pDc = pWnd->GetDC();//获取picture control的DC，这是什么玩意我也不知道，百度就行
+    int ModeOld = SetStretchBltMode(pDc->m_hDC, STRETCH_HALFTONE);//设置指定设备环境中的位图拉伸模式
+   
+    q.StretchBlt(pDc->m_hDC, picRect, SRCCOPY);//显示函数
+    SetStretchBltMode(pDc->m_hDC, ModeOld);
+    
+    ReleaseDC(pDc);//释放指针空间
+}
+//void CBasicDemoDlg::ResizeImage(cv::Mat img)
+//{
+//    // 读取图片的宽和高  
+//    int w = img.cols;
+//    int h = img.rows;
+//
+//    // 找出宽和高中的较大值者  
+//    int max = (w > h) ? w : h;
+//
+//    // 计算将图片缩放到TheImage区域所需的比例因子  
+//    float scale = (float)((float)max / 256.0f);
+//
+//    // 缩放后图片的宽和高  
+//    int nw = (int)(w / scale);
+//    int nh = (int)(h / scale);
+//
+//    // 为了将缩放后的图片存入 TheImage 的正中部位，需计算图片在 TheImage 左上角的期望坐标值  
+//    int tlx = (nw > nh) ? 0 : (int)(256 - nw) / 2;
+//    int tly = (nw > nh) ? (int)(256 - nh) / 2 : 0;
+//
+//    // 设置 TheImage 的 ROI 区域，用来存入图片 img  
+//    cvSetImageROI(TheImage, cvRect(tlx, tly, nw, nh));
+//
+//    // 对图片 img 进行缩放，并存入到 TheImage 中  
+//    cvResize(&img, TheImage);
+//
+//    // 重置 TheImage 的 ROI 准备读入下一幅图片  
+//    cvResetImageROI(TheImage);
+//}
 int CBasicDemoDlg::GrabThreadProcess()
 {
     // ch:从相机中获取一帧图像大小 | en:Get size of one frame from camera
@@ -1135,17 +1314,20 @@ int CBasicDemoDlg::GrabThreadProcess()
         bool bConvertRet = false;
         while (m_bThreadState)
         {
-            WriteLog(L"1");
+          //  WriteLog(L"1");
+         //   Sleep(m_edt_DelayValue);
+            
             EnterCriticalSection(&m_hSaveImageMux);
-            WriteLog(L"2");
+           // WriteLog(L"2");
             nRet = m_pcMyCamera->GetOneFrameTimeout(m_pGrabBuf, m_nGrabBufSize, &stImageInfo, 1000);
-            WriteLog(L"3");
+           // WriteLog(L"3");
             if (nRet == MV_OK)
             {
-                WriteLog(L"4");
+               // WriteLog(L"4");
                 memcpy(&m_stImageInfo, &stImageInfo, sizeof(MV_FRAME_OUT_INFO_EX));
             }
-            WriteLog(L"5");
+			
+          //  WriteLog(L"5");
             LeaveCriticalSection(&m_hSaveImageMux);
 
             if (nRet == MV_OK)
@@ -1154,16 +1336,14 @@ int CBasicDemoDlg::GrabThreadProcess()
                 {
                     continue;
                 }
-				/*  stDisplayInfo.hWnd = m_hwndDisplay;
-				  stDisplayInfo.pData = m_pGrabBuf;
-				  stDisplayInfo.nDataLen = stImageInfo.nFrameLen;
-				  stDisplayInfo.nWidth = stImageInfo.nWidth;
-				  stDisplayInfo.nHeight = stImageInfo.nHeight;
-				  stDisplayInfo.enPixelType = stImageInfo.enPixelType;*/
-
                 //转换为MAT 格式并显示
                 WriteLog(L"准备进入convert2Mat");
                 bConvertRet = Convert2Mat(&stImageInfo, m_pGrabBuf);
+                if (!bConvertRet)
+                {
+                    break;
+                }
+          
             }
             else
             {
@@ -1174,7 +1354,7 @@ int CBasicDemoDlg::GrabThreadProcess()
             }
         }
     }
-    catch (Exception ex)
+    catch (Exception ex)        
     {
    //     CBasicDemoDlg lg = new CBasicDemoDlg();
         CString cstr(ex.msg.c_str());
@@ -1190,6 +1370,9 @@ void CBasicDemoDlg::OnBnClickedEnumButton()
 {
     CString strMsg;
     CString strIndex;
+    try
+    {
+
     m_ctrlDeviceCombo.ResetContent();
     memset(&m_stDevList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
 
@@ -1197,6 +1380,7 @@ void CBasicDemoDlg::OnBnClickedEnumButton()
     int nRet = CMvCamera::EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_stDevList);
     if (MV_OK != nRet)
     {
+        ShowErrorMsg(TEXT("相机搜索错误！"), 0);
         return;
     }
 
@@ -1234,7 +1418,7 @@ void CBasicDemoDlg::OnBnClickedEnumButton()
                 MultiByteToWideChar(CP_ACP, 0, (LPCSTR)(strUserName), -1, pUserName, dwLenUserName);
             }
             strMsg.Format(_T("[%d]GigE:    %s  (%d.%d.%d.%d)"), i, pUserName, nIp1, nIp2, nIp3, nIp4);
-            strIndex.Format(_T("[%d]号相机"), i);
+            strIndex.Format(_T("[%d]号相机 (%d.%d.%d.%d)"), i, nIp1, nIp2, nIp3, nIp4);
         }
         else if (pDeviceInfo->nTLayerType == MV_USB_DEVICE)
         {
@@ -1279,6 +1463,14 @@ void CBasicDemoDlg::OnBnClickedEnumButton()
 
     EnableControls(TRUE);
 
+    }
+    catch (Exception ex)
+    {
+        CString cstr(ex.msg.c_str());
+        WriteLog(cstr);
+        ShowErrorMsg(cstr, 0);
+        return;
+    }
     return;
 }
 
@@ -1292,13 +1484,30 @@ void CBasicDemoDlg::OnBnClickedOpenButton()
         return;
     }
 
+    //转换成rgb8图像
+    nRet = m_pcMyCamera->SetEnumValue("PixelFormat", 0x02180014);
+    if (MV_OK != nRet)
+    {
+        MessageBox(L"转换成RGB错误");
+        return;
+    }
+
     OnBnClickedGetParameterButton(); // ch:获取参数 | en:Get Parameter
     EnableControls(TRUE);
     MVCC_INTVALUE_EX height = { 0 }, width = { 0 };
 	m_pcMyCamera->GetIntValue("Height", &height);
     m_pcMyCamera->GetIntValue("Width", &width);
-    m_Height = height.nCurValue;
-    m_Width = width.nCurValue;
+    m_picHeight = height.nCurValue;
+    m_picWeight = width.nCurValue;
+	
+    startPoint.x = 0;
+	startPoint.y = 0;
+	endPoint.x = m_picWeight;
+	endPoint.y = m_picHeight;
+	
+	h_w_float = float(m_picHeight) / float(m_picWeight);//获得图片的宽高比
+//	rc.SetRect(0, 0, m_picWeight, m_picHeight);//设置矩形的两个角点
+
     return;
 }
 
@@ -1383,7 +1592,7 @@ void CBasicDemoDlg::OnBnClickedStartGrabbingButton()
     }
     m_bStartGrabbing = TRUE;
     EnableControls(TRUE);
-
+   
     return;
 }
 
@@ -1569,16 +1778,61 @@ void CBasicDemoDlg::OnClose()
 
 BOOL CBasicDemoDlg::PreTranslateMessage(MSG* pMsg)
 {
-  /*  if (pMsg->message == WM_KEYDOWN&&pMsg->wParam == VK_ESCAPE)
-    {
-        return TRUE;
-    }
 
-    if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
+
+    if (m_hAccel)
     {
-        return TRUE;
-    }*/
-   
+        if (::TranslateAccelerator(m_hWnd, m_hAccel, pMsg))
+        {
+            return(TRUE);
+        }
+        else
+        {
+            if(pMsg->message == WM_KEYDOWN)
+            {
+                int nRet;
+                    if(int(pMsg->wParam) == 109)
+                    {
+			           int result = _ttoi(m_editDelay) - 500;
+
+			            if (result < 0)
+				        result = 0;
+                        m_editDelay.Format(L"%d", result);
+						 nRet = m_pcMyCamera->SetFloatValue("TriggerDelay", float(result));
+                        UpdateData(false);
+						if (MV_OK != nRet)
+						{
+					//		return 0;
+						}
+
+					//	UpdateData(false);
+                     }
+                    else
+                        if (int(pMsg->wParam) == 107)
+                        {
+							int result = _ttoi(m_editDelay) + 500;
+
+							if (result > 9000000)
+								result = 9000000;
+                            m_editDelay.Format(L"%d", result);
+							 nRet = m_pcMyCamera->SetFloatValue("TriggerDelay", float(result));
+                            UpdateData(false);
+							if (MV_OK != nRet)
+							{
+//								return 0;
+							}
+
+							
+                        }
+            }
+        }
+     
+    }
+	
+	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
+		return TRUE;
+	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE)
+		return TRUE;
     return CDialog::PreTranslateMessage(pMsg);
 }
 
@@ -1637,21 +1891,22 @@ bool CBasicDemoDlg::RemoveCustomPixelFormats(enum MvGvspPixelType enPixelFormat)
 void CBasicDemoDlg::OnBnClickedButtonDiff()
 {
     showdiff = !showdiff;
+    try {
+        src = imread("1.bmp");
+        cvtColor(src, bmpImgGray, CV_BGR2GRAY);
+    }
+    catch (Exception ex)
+    {
+        return;
+  }
 
-    img_file = imread("1.bmp");
-    src = &IplImage(img_file);
- //   buf = NULL;
-    // temporary images    
-  ///  mhi = NULL; // 运动历史图像//MHI   
-   
-   /* if (srcImage.size() != 0)
-        srcImage.release();*/
 }
 
 void CBasicDemoDlg::resize()
 {
     try
     {
+        
         float fsp[2];
         POINT Newp; //获取现在对话框的大小
         CRect recta;
@@ -1681,6 +1936,7 @@ void CBasicDemoDlg::resize()
             hwndChild = ::GetWindow(hwndChild, GW_HWNDNEXT);
         }
         Old = Newp;
+
     }
     catch (Exception ex)
     {
@@ -1694,7 +1950,9 @@ void CBasicDemoDlg::OnSize(UINT nType, int cx, int cy)
     CDialog::OnSize(nType, cx, cy);
 
     // TODO: Add your message handler code here
-    if (nType == SIZE_RESTORED || nType == SIZE_MAXIMIZED) {
+    if (nType == SIZE_MAXIMIZED) { //nType == SIZE_RESTORED || 
+        GetDlgItem(IDC_STATIC_video)->ShowWindow(FALSE);
+        GetDlgItem(IDC_STATIC_video)->ShowWindow(TRUE);
         resize();
     }
 }
@@ -1752,7 +2010,7 @@ void CBasicDemoDlg::OnPictureSave(UINT ID)
 
 	CBitmap bmp;
     
-	bmp.CreateCompatibleBitmap(pDC,m_Width, m_Height);
+	bmp.CreateCompatibleBitmap(pDC, m_picWeight, m_picHeight);
 
 	CDC memDC;
 
@@ -1764,7 +2022,7 @@ void CBasicDemoDlg::OnPictureSave(UINT ID)
 
 	::SetBrushOrgEx(memDC.m_hDC, 0, 0, NULL);
 
-	imag.StretchBlt(memDC.m_hDC, CRect(0, 0, m_Width, m_Height)/*DestRect*/, CRect(0, 0, imag.GetWidth(), imag.GetHeight())/*SourceRect*/, SRCCOPY);
+	imag.StretchBlt(memDC.m_hDC, CRect(0, 0, m_picWeight, m_picHeight)/*DestRect*/, CRect(0, 0, imag.GetWidth(), imag.GetHeight())/*SourceRect*/, SRCCOPY);
 
 	//152,200就是你想要的图像的宽和高(以像素为单位)
 
@@ -1783,7 +2041,7 @@ void CBasicDemoDlg::OnBnClickedButtonsave()
     try
     {
 
-        m_rotate = 3;
+      //  m_rotate = 3;
         Sleep(200);  //给点恢复现场的时间
         cv::imwrite("1.bmp", orgPic);  //写入图片srcImage 
     }
@@ -1820,6 +2078,26 @@ void CBasicDemoDlg::OnBnClickedButtontoleft()
     m_rotate -= 1;
     if (m_rotate < 0)
         m_rotate = 3;
+	GetDlgItem(IDC_STATIC_video)->ShowWindow(FALSE);
+	GetDlgItem(IDC_STATIC_video)->ShowWindow(TRUE); 
+	/* bool aaa;
+	 MVCC_INTVALUE_EX mmm = { 0 };
+	 int nRet = m_pcMyCamera->GetBoolValue("FrameSpecInfo", &aaa);
+	 m_pcMyCamera->GetIntValue("DeviceUptime", &mmm);
+	 nRet = m_pcMyCamera->SetEnumValue("FrameSpecInfoSelector", 1);
+	 if (MV_OK != nRet)
+	 {
+
+		 ShowErrorMsg(TEXT("shibai ！"), nRet);
+		 return;
+	 }
+	 nRet = m_pcMyCamera->SetBoolValue("FrameSpecInfo",TRUE);
+	 if (MV_OK != nRet)
+	 {
+
+		 ShowErrorMsg(TEXT("设置水印使能失败！"), nRet);
+		 return;
+	 }*/
 }
 
 
@@ -1829,7 +2107,8 @@ void CBasicDemoDlg::OnBnClickedButtontoright()
     if (m_rotate >= 3)
         m_rotate = -1;
     m_rotate += 1; 
-  
+	GetDlgItem(IDC_STATIC_video)->ShowWindow(FALSE);
+	GetDlgItem(IDC_STATIC_video)->ShowWindow(TRUE);
 }
 
 
@@ -1843,10 +2122,13 @@ void CBasicDemoDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 void CBasicDemoDlg::OnDblclkStaticVideo()
 {
     // TODO: 在此添加控件通知处理程序代码
-    if (showdiff)
-        showdiff = !showdiff;
-    showFullScreen(IDC_STATIC_video);
   
+   /* if (showdiff)
+		showdiff = !showdiff;*/
+   
+    showFullScreen(IDC_STATIC_video);
+	GetDlgItem(IDC_STATIC_video)->ShowWindow(FALSE);
+	GetDlgItem(IDC_STATIC_video)->ShowWindow(TRUE);
 }
 
 
@@ -1860,7 +2142,8 @@ void CBasicDemoDlg::OnDblclkDisplayStatic()
         showFullScreen(IDC_DISPLAY_STATIC);
     }
    
-   
+	GetDlgItem(IDC_DISPLAY_STATIC)->ShowWindow(FALSE);
+	GetDlgItem(IDC_DISPLAY_STATIC)->ShowWindow(TRUE);
 }
 void CBasicDemoDlg::showFullScreen(int u)
 {
@@ -1868,7 +2151,11 @@ void CBasicDemoDlg::showFullScreen(int u)
     {
       
         bFullScreen = true;
+        HideControls();
+		//隐藏控件
+		CPaintDC dc(this);
 
+		
         //获取系统屏幕宽高
         int g_iCurScreenWidth = GetSystemMetrics(SM_CXSCREEN);
         int g_iCurScreenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -1897,20 +2184,76 @@ void CBasicDemoDlg::showFullScreen(int u)
         struWndpl.showCmd = SW_SHOW;
         struWndpl.rcNormalPosition = rectFullScreen;
         SetWindowPlacement(&struWndpl);//该函数设置指定窗口的显示状态和显示大小位置等，是我们该程序最为重要的函数
+		//绘制背景   
+		/*CRect rect;
+		GetClientRect(&rect);*/
+
 
         //将PICTURE控件的坐标设为全屏大小
         GetDlgItem(u)->MoveWindow(CRect(0, 0, g_iCurScreenWidth, g_iCurScreenHeight));
+
+  //      CPaintDC ddcc(this);
+		//CBrush bruDB(RGB(50, 50, 50));//背景颜色  
+
+		//ddcc.FillRect(CRect(0, 0, g_iCurScreenWidth, g_iCurScreenHeight), &bruDB);
     }
     else
     {
-
-        SetWindowPlacement(&m_struOldWndpl);
         GetDlgItem(u)->SetWindowPlacement(&m_struOldWndpPic);
+        SetWindowPlacement(&m_struOldWndpl);
+       
         bFullScreen = false;
         isDiffScFull = false;
+        HideControls();
     }
 }
+void CBasicDemoDlg::HideControls()
+{
+    GetDlgItem(IDC_OPEN_BUTTON)->ShowWindow(bFullScreen ? SW_HIDE :SW_SHOW);
+    GetDlgItem(IDC_CLOSE_BUTTON)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_START_GRABBING_BUTTON)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_STOP_GRABBING_BUTTON)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_SOFTWARE_TRIGGER_CHECK)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_SOFTWARE_ONCE_BUTTON)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    /*GetDlgItem(IDC_SAVE_BMP_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_SAVE_TIFF_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_SAVE_PNG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_SAVE_JPG_BUTTON)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);*/
+    GetDlgItem(IDC_EXPOSURE_EDIT)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_GAIN_EDIT)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_FRAME_RATE_EDIT)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_GET_PARAMETER_BUTTON)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_SET_PARAMETER_BUTTON)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_CONTINUS_MODE_RADIO)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_TRIGGER_MODE_RADIO)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
 
+    GetDlgItem(IDC_BUTTON_Threshold)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_BUTTON_maxvalue)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_BUTTON_save)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_BUTTON_DIFF)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_BUTTON_toleft)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_BUTTON_toright)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_EDIT_Threshold)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_EDIT_maxvalue)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+
+    GetDlgItem(IDC_DEVICE_COMBO)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_INIT_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_BUTTON_showerror)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_EXPOSURE_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_GAIN_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_FRAME_RATE_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_ENUM_BUTTON)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_STATIC_dirty)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_IMAGE_GRABBING_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_PARAMETER_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_DISPLAY_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_STATIC_video)->ShowWindow(isDiffScFull ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_STATIC_time)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_EDIT1)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_STATIC_delay)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    GetDlgItem(IDC_SPIN1)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+} 
 void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
@@ -1927,95 +2270,7 @@ void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 
     CDialog::OnGetMinMaxInfo(lpMMI);
 }
-#ifdef SETROI
-char arr[100];
-void CBasicDemoDlg::OnLButtonDown(UINT nFlags, CPoint point)
-{
-    // TODO: 在此添加消息处理程序代码和/或调用默认值
 
-    if (m_draw_rect == false && point.x > rect_view.left && point.y < rect_view.bottom && point.y > rect_view.top && point.x < rect_view.right)
-    {
-        down_point = point;
-        //  KillTimer(4);
-        make_rect.left = point.x;
-        make_rect.top = point.y;
-        sprintf(arr, "x:%d && y:%d\n\r", point.x, point.y);
-        //	MessageBox(arr);
-        m_edit_show = arr;
-        m_draw_rect = true;
-        UpdateData(FALSE);
-
-    }
-
-
-    CDialog::OnLButtonDown(nFlags, point);
-}
-
-
-void CBasicDemoDlg::OnLButtonUp(UINT nFlags, CPoint point)
-{
-    // TODO: 在此添加消息处理程序代码和/或调用默认值
-    if (m_draw_rect == true && point.x > rect_view.left && point.y < rect_view.bottom && point.y > rect_view.top && point.x < rect_view.right)
-    {
-        //	CPoint mouse_up = point;
-        m_draw_rect = false;
-        rect_rect = make_rect;
-        //SetTimer(4,10,NULL);
-    }
-    CDialog::OnLButtonUp(nFlags, point);
-}
-
-
-void CBasicDemoDlg::OnMouseMove(UINT nFlags, CPoint point)
-{
-    // TODO: 在此添加消息处理程序代码和/或调用默认值
-    if (m_draw_rect)
-    {
-        if (abs(point.x - down_point.x) > 10 || abs(point.y - down_point.y) > 10) //矩形区域过小则不处理
-        {
-            if (point.x <= rect_view.left)
-                make_rect.right = rect_view.left;
-            else
-                if (point.x >= rect_view.right)
-                    make_rect.right = rect_view.right;
-                else
-                    make_rect.right = point.x;
-
-            if (point.y <= rect_view.top)
-                make_rect.bottom = rect_view.top;
-            else
-                if (point.y >= rect_view.bottom)
-                    make_rect.bottom = rect_view.bottom;
-                else
-                    make_rect.bottom = point.y;
-            sprintf(arr, "\n\r\txx:%d $$ yy:%d\n\r", make_rect.right, make_rect.bottom);
-            m_edit_show += arr;
-            UpdateData(FALSE);
-            //	pFrame = cvQueryFrame( g_capture );
-                //CvvImage m_CvvImage;  
-                //m_CvvImage.CopyOf(pFrame,1); //复制该帧图像    
-                //m_CvvImage.DrawToHDC(hDC, &rect); //显示到设备的矩形框内
-                //pdc->Rectangle(m_rect);
-            //	InvalidateRect(&rect,false); //刷新控件区域
-            CDC* pdc = GetDlgItem(IDC_STATIC_video)->GetDC();// GetWindowDC();   
-            pdc->SelectStockObject(NULL_BRUSH);
-            SetRect(&m_rect, abs(make_rect.left - rect_view.left), abs(make_rect.top - rect_view.top), abs(make_rect.right - rect_view.left), abs(make_rect.bottom - rect_view.top));
-            //InvalidateRect(&rect,TRUE); //刷新控件区域
-            pdc->Rectangle(m_rect /*CRect( make_rect.left - rect_view.left , make_rect.top - rect_view.top , make_rect.right - rect_view.left , make_rect.bottom - rect_view.top )*/);
-            ReleaseDC(pdc);
-        }
-        else
-        {
-            make_rect.left = down_point.x;
-            make_rect.top = down_point.y;
-            make_rect.right = down_point.x + 10;
-            make_rect.bottom = down_point.y + 10;
-        }
-    }
-        //  CPoint mouse_up = point;
-    CDialog::OnMouseMove(nFlags, point);
-}
-#endif
 
 
 
@@ -2065,4 +2320,193 @@ LRESULT CBasicDemoDlg::DefWindowProc(UINT message, WPARAM wParam, LPARAM lParam)
     // TODO: 在此添加专用代码和/或调用基类
     OnMyEvent(message, wParam, lParam);
     return CDialog::DefWindowProc(message, wParam, lParam);
+}
+
+
+BOOL CBasicDemoDlg::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+	CPoint mousePoint;                      //定义当前鼠标的坐标点
+	GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
+	ScreenToClient(&mousePoint);
+    if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
+        return 0;  // MessageBox(L"out");
+	//int dx = mousePoint.x - (rect_view.TopLeft()).x; //计算鼠标坐标点到矩形起始点X方向的向量
+	//int dy = mousePoint.y - (rect_view.TopLeft()).y; //计算鼠标坐标点到矩形起始点Y方向的向量
+
+	//根据鼠标滚轮滚动方向判断缩放 与 滚动格数计算缩放比例 
+	if (zDelta > 0)
+	{
+        //鼠标滚轮向上
+		//startPoint.x = rc.TopLeft().x - (int)(dx * 0.1);//计算放大后的矩形起始点坐标
+		//startPoint.y = rc.TopLeft().y - (int)(dy * 0.1);
+		//scale *= 1.1;                  //计算每次放大的比例值
+        startPoint.x += 20 ;
+        startPoint.y += 20 * h_w_float;
+		endPoint.x -= 20 ;  //计算缩放后的矩形终点坐标
+		endPoint.y -= 20 * h_w_float;
+	}
+	else
+	{
+        //鼠标滚轮向下
+		//startPoint.x = rc.TopLeft().x + (int)(dx * 0.1);//计算缩小后的矩形起始点坐标
+		//startPoint.y = rc.TopLeft().y + (int)(dy * 0.1);
+		//scale *= 0.9;                //计算每次缩小的比例值
+		startPoint.x -= 20 ;
+		startPoint.y -= 20 * h_w_float;
+		endPoint.x += 20 ;  //计算缩放后的矩形终点坐标
+		endPoint.y += 20 * h_w_float;
+	}
+    if (startPoint.x < 0 || startPoint.y < 0)
+    {
+        startPoint.x = 0;
+        startPoint.y = 0;
+    }
+	//endPoint.x = startPoint.x + (int)(m_picHeight * scale);  //计算缩放后的矩形终点坐标
+	//endPoint.y = startPoint.y + (int)(m_picWeight * scale);
+    if (endPoint.x > m_picWeight || endPoint.y > m_picHeight)
+    {
+        endPoint.x = m_picWeight;
+        endPoint.y = m_picHeight;
+    }
+	//Invalidate();   //重新绘制图形
+    /**/
+    return CDialog::OnMouseWheel(nFlags, zDelta, pt);
+}
+
+
+void CBasicDemoDlg::OnPicNcLButtonDblClk(UINT nHitTest, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+	if (nHitTest == HTCAPTION ) // 为标题栏的双击  
+		return;
+
+    CDialog::OnNcLButtonDblClk(nHitTest, point);
+}
+#ifdef SETROI
+
+
+
+void CBasicDemoDlg::OnPicLButtonDown(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+	m_StartPoint = point;
+
+	m_EndPoint = point;
+
+	m_bLBDown = TRUE;
+
+	SetCapture();//设置鼠标捕获
+
+    CDialog::OnLButtonDown(nFlags, point);
+}
+void CBasicDemoDlg::OnPicLButtonUp(UINT nFlags, CPoint point)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+	if (this == GetCapture())
+	{
+		ReleaseCapture();
+	}
+
+	m_bLBDown = FALSE;
+
+	Invalidate(FALSE);//更新界面   
+
+	CDialog::OnLButtonUp(nFlags, point);
+}
+
+#endif
+
+
+
+void CBasicDemoDlg::OnPicMouseMove(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+	if (m_bLBDown)
+	{
+		m_EndPoint = point;
+
+		Invalidate(FALSE);//更新界面  
+	}
+    CDialog::OnMouseMove(nFlags, point);
+}
+
+
+BOOL CBasicDemoDlg::OnPicEraseBkgnd(CDC* pDC)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+	  //return CDialogEx::OnEraseBkgnd(pDC);不需要重绘背景  
+	return TRUE;
+  //  return CDialog::OnEraseBkgnd(pDC);
+}
+
+
+void CBasicDemoDlg::OnDeltaposSpin1(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    LPNMUPDOWN pNMUpDown = reinterpret_cast<LPNMUPDOWN>(pNMHDR);
+    // TODO: 在此添加控件通知处理程序代码
+	UpdateData(true);
+	CString ss;
+    int result = 0;
+    Sleep(200);
+  //  ((CEdit*)GetDlgItem(IDC_EDIT1))->SetSel(m_editDelay.GetLength(), m_editDelay.GetLength());
+	if (pNMUpDown->iDelta == -1) // 如果此值为-1 , 说明点击了Spin的往下的箭头  
+	{
+        result = _ttoi(m_editDelay) - 500;
+
+        if (result < 0)
+            result = 0;
+        ss.Format(L"%d", result);
+	}
+	else if (pNMUpDown->iDelta == 1) // 如果此值为1, 说明点击了Spin的往上的箭头  
+	{
+		result = _ttoi(m_editDelay) + 500;
+
+		if (result > 9000000)
+			result = 9000000;
+		ss.Format(L"%d", result);
+		
+	}
+    m_editDelay = ss;
+    int nRet = m_pcMyCamera->SetFloatValue("TriggerDelay", result);
+	if (MV_OK != nRet)
+	{
+		return ;
+	}
+  
+	UpdateData(false);
+    ((CEdit*)GetDlgItem(IDC_EDIT1))->SetSel(m_editDelay.GetLength(), m_editDelay.GetLength());
+	*pResult = 0;
+}
+
+
+void CBasicDemoDlg::OnChangeEdit1()
+{
+    // TODO:  如果该控件是 RICHEDIT 控件，它将不
+    // 发送此通知，除非重写 CDialog::OnInitDialog()
+    // 函数并调用 CRichEditCtrl().SetEventMask()，
+    // 同时将 ENM_CHANGE 标志“或”运算到掩码中。
+    UpdateData(TRUE);
+	if (m_editDelay.Find('/') >= 0 || m_editDelay.Find('\\') >= 0 || m_editDelay.Find('|') >= 0 ||
+        m_editDelay.Find('-') >= 0 || m_editDelay.Find('+') >= 0 || m_editDelay.Find('\"') >= 0 ||
+         m_editDelay.Find('*') >= 0 || m_editDelay.Find('<') >= 0 || m_editDelay.Find('<') >= 0)
+	{
+		int  tem_nEditSize = m_editDelay.GetLength();
+        m_editDelay = m_editDelay.Right(tem_nEditSize - 1);
+        if (tem_nEditSize == 2)
+            m_editDelay = "0";
+		UpdateData(FALSE);
+		if (m_editDelay.GetLength() > 0)
+		{
+			//设置Edit光标至末尾,否则光标会跳至段首
+			((CEdit*)GetDlgItem(IDC_EDIT1))->SetSel(m_editDelay.GetLength(), m_editDelay.GetLength());
+		}
+	}
+	int nRet = m_pcMyCamera->SetFloatValue("TriggerDelay", _ttoi(m_editDelay));
+	if (MV_OK != nRet)
+	{
+		return;
+	}
+    ((CEdit*)GetDlgItem(IDC_EDIT1))->SetSel(m_editDelay.GetLength(), m_editDelay.GetLength());
+    // TODO:  在此添加控件通知处理程序代码
 }

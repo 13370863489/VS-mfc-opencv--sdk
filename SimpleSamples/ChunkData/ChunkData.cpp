@@ -78,7 +78,7 @@ int main()
         // ch:√∂æŸ…Ë±∏ | en:Enum device
         MV_CC_DEVICE_INFO_LIST stDeviceList;
         memset(&stDeviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
-        nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE, &stDeviceList);
+        nRet = MV_CC_EnumDevices(MV_USB_DEVICE, &stDeviceList);
         if (MV_OK != nRet)
         {
             printf("Enum Devices fail! nRet [0x%x]\n", nRet);
