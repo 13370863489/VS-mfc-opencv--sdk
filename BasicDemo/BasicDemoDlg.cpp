@@ -130,18 +130,27 @@ BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
     ON_STN_DBLCLK(IDC_STATIC_video, &CBasicDemoDlg::OnDblclkStaticVideo)
     ON_STN_DBLCLK(IDC_DISPLAY_STATIC, &CBasicDemoDlg::OnDblclkDisplayStatic)
     ON_WM_GETMINMAXINFO()
-#ifdef SETROI
 
 
     ON_WM_MOUSEWHEEL()
-    ON_WM_NCLBUTTONDBLCLK(IDC_STATIC_video, &CBasicDemoDlg::OnPicNcLButtonDblClk)
-	ON_WM_LBUTTONDOWN(IDC_STATIC_video, &CBasicDemoDlg::OnPicLButtonDown)
-	ON_WM_LBUTTONUP(IDC_STATIC_video, &CBasicDemoDlg::OnPicLButtonUp)
-	ON_WM_MOUSEMOVE(IDC_STATIC_video, &CBasicDemoDlg::OnPicMouseMove)
-	ON_WM_ERASEBKGND(IDC_STATIC_video, &CBasicDemoDlg::OnPicEraseBkgnd)
+ //   ON_WM_NCLBUTTONDBLCLK(IDC_STATIC_video, &CBasicDemoDlg::OnPicNcLButtonDblClk)
+	//ON_WM_LBUTTONDOWN(IDC_STATIC_video, &CBasicDemoDlg::OnPicLButtonDown)
+	//ON_WM_LBUTTONUP(IDC_STATIC_video, &CBasicDemoDlg::OnPicLButtonUp)
+	//ON_WM_MOUSEMOVE(IDC_STATIC_video, &CBasicDemoDlg::OnPicMouseMove)
+	//ON_WM_ERASEBKGND(IDC_STATIC_video, & CBasicDemoDlg::OnPicEraseBkgnd)
+#ifdef SETROI
+
 #endif
     ON_NOTIFY(UDN_DELTAPOS, IDC_SPIN1, &CBasicDemoDlg::OnDeltaposSpin1)
     ON_EN_CHANGE(IDC_EDIT1, &CBasicDemoDlg::OnChangeEdit1)
+//    ON_WM_LBUTTONDOWN()
+    ON_WM_MOUSEMOVE()
+    ON_WM_LBUTTONUP()
+    ON_WM_LBUTTONDOWN()
+    ON_BN_CLICKED(IDC_BUTTON_move_up, &CBasicDemoDlg::OnBnClickedButtonmoveup)
+    ON_BN_CLICKED(IDC_BUTTON_move_left, &CBasicDemoDlg::OnBnClickedButtonmoveleft)
+    ON_BN_CLICKED(IDC_BUTTON_move_right, &CBasicDemoDlg::OnBnClickedButtonmoveright)
+    ON_BN_CLICKED(IDC_BUTTON_move_down, &CBasicDemoDlg::OnBnClickedButtonmovedown)
 END_MESSAGE_MAP()
 
 // ch:取流线程 | en:Grabbing thread
@@ -192,9 +201,9 @@ BOOL CBasicDemoDlg::OnInitDialog()
 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
 		}
 	}
-    CWnd* pControl = GetDlgItem(IDC_STATIC_video);
-    pControl->GetWindowRect(&rect_view);    //获得子控件的屏幕坐标；     
-    this->ScreenToClient(&rect_view);   //子控件屏幕坐标映射到控件客户区；且这里一定要用this
+    //CWnd* pControl = GetDlgItem(IDC_STATIC_video);
+    //pControl->GetWindowRect(&rect_view);    //获得子控件的屏幕坐标；     
+    //this->ScreenToClient(&rect_view);   //子控件屏幕坐标映射到控件客户区；且这里一定要用this
     //InvalidateRect(&rect_view, TRUE);  //刷新控件区域
    
     //m_picHeight = rect_view.bottom - rect_view.top;
@@ -336,27 +345,27 @@ void CBasicDemoDlg::OnPaint()
 	FillRect(m_videoWnd.GetDC()->GetSafeHdc(), &prect, CBrush(RGB(50, 50, 50)));  //填充非图像区域为黑色
     m_diff_display.GetClientRect(&prect);
     FillRect(m_diff_display.GetDC()->GetSafeHdc(), &prect, CBrush(RGB(50, 50, 50)));  //填充非图像区域为黑色
-	CPaintDC dc(this);
+	
+ //   CPaintDC dc(this);
+	////绘制背景   
+	//CRect rect;
+	//GetClientRect(&rect);
 
-	//绘制背景   
-	CRect rect;
-	GetClientRect(&rect);
+	//CBrush bruDB(RGB(255, 255, 255));//背景颜色  
 
-	CBrush bruDB(RGB(255, 255, 255));//背景颜色  
+	//dc.FillRect(&rect, &bruDB);
 
-	dc.FillRect(&rect, &bruDB);
+	////绘制拖动矩形   
+	//if (m_bLBDown)
+	//{
+	//	CRect rect(m_StartPoint, m_EndPoint);
 
-	//绘制拖动矩形   
-	if (m_bLBDown)
-	{
-		CRect rect(m_StartPoint, m_EndPoint);
+	//	rect.NormalizeRect();//规范化矩形   
 
-		rect.NormalizeRect();//规范化矩形   
+	//	CBrush bruPen(RGB(255, 0, 0));//矩形边框颜色  
 
-		CBrush bruPen(RGB(255, 0, 0));//矩形边框颜色  
-
-		dc.FrameRect(&rect, &bruPen);
-	}
+	//	dc.FrameRect(&rect, &bruPen);
+	//}
 
 	if (IsIconic())
 	{
@@ -1031,7 +1040,7 @@ void CBasicDemoDlg::DrawPicToHDC(IplImage* img, UINT ID)
 /*
 
 */
-bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char* pData)
+bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char* pData)
 {
    
     clock_t start, finish;
@@ -1059,14 +1068,16 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
     {
         return false;
     }
-    srcImage = srcImage(Rect(startPoint.x, startPoint.y, endPoint.x, endPoint.y));
-
     orgPic = srcImage;
+    srcImage = srcImage(Rect(startPoint.x, startPoint.y, endPoint.x - startPoint.x, endPoint.y - startPoint.y));
     try {
         if (showdiff)
           {
+            cv::Mat bmpImgGrayRoi;
+            bmpImgGrayRoi = bmpImgGray(Rect(startPoint.x, startPoint.y, endPoint.x - startPoint.x, endPoint.y - startPoint.y));
+
                 cvtColor(srcImage , srcImageGray, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
-                cv::absdiff(srcImageGray, bmpImgGray,diffImgGray);    //图像做差
+                cv::absdiff(srcImageGray, bmpImgGrayRoi,diffImgGray);    //图像做差
                 cv::threshold(diffImgGray, diffImgGray, m_Threshold,m_maxvalue, CV_THRESH_BINARY);  //进行阈值处理 二值化
                  
                 // 4.腐蚀  
@@ -1080,15 +1091,15 @@ bool CBasicDemoDlg::Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned cha
                 vector<vector<Point>> contours;
                 findContours(diffImgGray, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
                 // 在result上绘制轮廓
-              //  drawContours(srcImage, contours, -1, Scalar(0, 200, 255), 2);  //原图上
+                //drawContours(srcImage, contours, -1, Scalar(0, 200, 255), 2);  //原图上
                 // 7.查找正外接矩形  
-                //vector<Rect> boundRect(contours.size());
-                //for (int i = 0; i < contours.size(); i++)
-                //{
-                //    boundRect[i] = boundingRect(contours[i]);
-                //    // 在result上绘制正外接矩形
-                //    rectangle(srcImage, boundRect[i], Scalar(0, 255, 0), 2);  //在原图上画矩形
-                //}
+                vector<Rect> boundRect(contours.size());
+                for (int i = 0; i < contours.size(); i++)
+                {
+                    boundRect[i] = boundingRect(contours[i]);
+                    // 在result上绘制正外接矩形
+                    rectangle(srcImage, boundRect[i], Scalar(0, 255, 0), 2);  //在原图上画矩形
+                }
 
                 if (contours.size() >= 0)
                 {
@@ -1338,7 +1349,7 @@ int CBasicDemoDlg::GrabThreadProcess()
                 }
                 //转换为MAT 格式并显示
                 WriteLog(L"准备进入convert2Mat");
-                bConvertRet = Convert2Mat(&stImageInfo, m_pGrabBuf);
+                bConvertRet = ImageMain(&stImageInfo, m_pGrabBuf);
                 if (!bConvertRet)
                 {
                     break;
@@ -1793,7 +1804,7 @@ BOOL CBasicDemoDlg::PreTranslateMessage(MSG* pMsg)
                 int nRet;
                     if(int(pMsg->wParam) == 109)
                     {
-			           int result = _ttoi(m_editDelay) - 500;
+			           int result = _ttoi(m_editDelay) - 5000;
 
 			            if (result < 0)
 				        result = 0;
@@ -1810,7 +1821,7 @@ BOOL CBasicDemoDlg::PreTranslateMessage(MSG* pMsg)
                     else
                         if (int(pMsg->wParam) == 107)
                         {
-							int result = _ttoi(m_editDelay) + 500;
+							int result = _ttoi(m_editDelay) + 5000;
 
 							if (result > 9000000)
 								result = 9000000;
@@ -1936,7 +1947,9 @@ void CBasicDemoDlg::resize()
             hwndChild = ::GetWindow(hwndChild, GW_HWNDNEXT);
         }
         Old = Newp;
-
+		CWnd* pControl = GetDlgItem(IDC_STATIC_video);
+		pControl->GetWindowRect(&rect_view);    //获得子控件的屏幕坐标；     
+		this->ScreenToClient(&rect_view);   //子控件屏幕坐标映射到控件客户区；且这里一定要用this
     }
     catch (Exception ex)
     {
@@ -2080,24 +2093,7 @@ void CBasicDemoDlg::OnBnClickedButtontoleft()
         m_rotate = 3;
 	GetDlgItem(IDC_STATIC_video)->ShowWindow(FALSE);
 	GetDlgItem(IDC_STATIC_video)->ShowWindow(TRUE); 
-	/* bool aaa;
-	 MVCC_INTVALUE_EX mmm = { 0 };
-	 int nRet = m_pcMyCamera->GetBoolValue("FrameSpecInfo", &aaa);
-	 m_pcMyCamera->GetIntValue("DeviceUptime", &mmm);
-	 nRet = m_pcMyCamera->SetEnumValue("FrameSpecInfoSelector", 1);
-	 if (MV_OK != nRet)
-	 {
 
-		 ShowErrorMsg(TEXT("shibai ！"), nRet);
-		 return;
-	 }
-	 nRet = m_pcMyCamera->SetBoolValue("FrameSpecInfo",TRUE);
-	 if (MV_OK != nRet)
-	 {
-
-		 ShowErrorMsg(TEXT("设置水印使能失败！"), nRet);
-		 return;
-	 }*/
 }
 
 
@@ -2192,6 +2188,7 @@ void CBasicDemoDlg::showFullScreen(int u)
         //将PICTURE控件的坐标设为全屏大小
         GetDlgItem(u)->MoveWindow(CRect(0, 0, g_iCurScreenWidth, g_iCurScreenHeight));
 
+
   //      CPaintDC ddcc(this);
 		//CBrush bruDB(RGB(50, 50, 50));//背景颜色  
 
@@ -2206,6 +2203,15 @@ void CBasicDemoDlg::showFullScreen(int u)
         isDiffScFull = false;
         HideControls();
     }
+	CWnd* pControl = GetDlgItem(IDC_STATIC_video);
+	pControl->GetWindowRect(&rect_view);    //获得子控件的屏幕坐标；     
+	this->ScreenToClient(&rect_view);   //子控件屏幕坐标映射到控件客户区；且这里一定要用this
+
+	CRect prect;
+	m_videoWnd.GetClientRect(&prect);   //获取区域
+	FillRect(m_videoWnd.GetDC()->GetSafeHdc(), &prect, CBrush(RGB(50, 50, 50)));  //填充非图像区域为黑色
+	m_diff_display.GetClientRect(&prect);
+	FillRect(m_diff_display.GetDC()->GetSafeHdc(), &prect, CBrush(RGB(50, 50, 50)));  //填充非图像区域为黑色
 }
 void CBasicDemoDlg::HideControls()
 {
@@ -2253,6 +2259,10 @@ void CBasicDemoDlg::HideControls()
     GetDlgItem(IDC_EDIT1)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
     GetDlgItem(IDC_STATIC_delay)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
     GetDlgItem(IDC_SPIN1)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_BUTTON_move_up)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_BUTTON_move_left)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_BUTTON_move_right)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_BUTTON_move_down)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
 } 
 void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
@@ -2341,10 +2351,10 @@ BOOL CBasicDemoDlg::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 		//startPoint.x = rc.TopLeft().x - (int)(dx * 0.1);//计算放大后的矩形起始点坐标
 		//startPoint.y = rc.TopLeft().y - (int)(dy * 0.1);
 		//scale *= 1.1;                  //计算每次放大的比例值
-        startPoint.x += 20 ;
-        startPoint.y += 20 * h_w_float;
-		endPoint.x -= 20 ;  //计算缩放后的矩形终点坐标
-		endPoint.y -= 20 * h_w_float;
+        startPoint.x += 40 ;
+        startPoint.y += 40 * h_w_float;
+		endPoint.x -= 40 ;  //计算缩放后的矩形终点坐标
+		endPoint.y -= 40 * h_w_float;
 	}
 	else
 	{
@@ -2352,10 +2362,10 @@ BOOL CBasicDemoDlg::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 		//startPoint.x = rc.TopLeft().x + (int)(dx * 0.1);//计算缩小后的矩形起始点坐标
 		//startPoint.y = rc.TopLeft().y + (int)(dy * 0.1);
 		//scale *= 0.9;                //计算每次缩小的比例值
-		startPoint.x -= 20 ;
-		startPoint.y -= 20 * h_w_float;
-		endPoint.x += 20 ;  //计算缩放后的矩形终点坐标
-		endPoint.y += 20 * h_w_float;
+		startPoint.x -= 40 ;
+		startPoint.y -= 40 * h_w_float;
+		endPoint.x += 40 ;  //计算缩放后的矩形终点坐标
+		endPoint.y += 40 * h_w_float;
 	}
     if (startPoint.x < 0 || startPoint.y < 0)
     {
@@ -2369,76 +2379,83 @@ BOOL CBasicDemoDlg::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
         endPoint.x = m_picWeight;
         endPoint.y = m_picHeight;
     }
+    if (startPoint.x > endPoint.x - 40 || startPoint.y > endPoint.y - 40 * h_w_float)
+    {
+        startPoint.x -= 40;
+        startPoint.y -= 40 * h_w_float;
+		endPoint.x += 40;
+		endPoint.y += 40 * h_w_float;
+    }
 	//Invalidate();   //重新绘制图形
     /**/
     return CDialog::OnMouseWheel(nFlags, zDelta, pt);
 }
 
-
-void CBasicDemoDlg::OnPicNcLButtonDblClk(UINT nHitTest, CPoint point)
-{
-    // TODO: 在此添加消息处理程序代码和/或调用默认值
-	if (nHitTest == HTCAPTION ) // 为标题栏的双击  
-		return;
-
-    CDialog::OnNcLButtonDblClk(nHitTest, point);
-}
-#ifdef SETROI
-
-
-
-void CBasicDemoDlg::OnPicLButtonDown(UINT nFlags, CPoint point)
-{
-    // TODO: 在此添加消息处理程序代码和/或调用默认值
-	m_StartPoint = point;
-
-	m_EndPoint = point;
-
-	m_bLBDown = TRUE;
-
-	SetCapture();//设置鼠标捕获
-
-    CDialog::OnLButtonDown(nFlags, point);
-}
-void CBasicDemoDlg::OnPicLButtonUp(UINT nFlags, CPoint point)
-{
-	// TODO: 在此添加消息处理程序代码和/或调用默认值
-	if (this == GetCapture())
-	{
-		ReleaseCapture();
-	}
-
-	m_bLBDown = FALSE;
-
-	Invalidate(FALSE);//更新界面   
-
-	CDialog::OnLButtonUp(nFlags, point);
-}
-
-#endif
-
-
-
-void CBasicDemoDlg::OnPicMouseMove(UINT nFlags, CPoint point)
-{
-    // TODO: 在此添加消息处理程序代码和/或调用默认值
-	if (m_bLBDown)
-	{
-		m_EndPoint = point;
-
-		Invalidate(FALSE);//更新界面  
-	}
-    CDialog::OnMouseMove(nFlags, point);
-}
+//
+//void CBasicDemoDlg::OnPicNcLButtonDblClk(UINT nHitTest, CPoint point)
+//{
+//    // TODO: 在此添加消息处理程序代码和/或调用默认值
+//	if (nHitTest == HTCAPTION ) // 为标题栏的双击  
+//		return;
+//
+//    CDialog::OnNcLButtonDblClk(nHitTest, point);
+//}
+//#ifdef SETROI
+//
+//
+//
+//void CBasicDemoDlg::OnPicLButtonDown(UINT nFlags, CPoint point)
+//{
+//    // TODO: 在此添加消息处理程序代码和/或调用默认值
+//	m_StartPoint = point;
+//
+//	m_EndPoint = point;
+//
+//	m_bLBDown = TRUE;
+//
+//	SetCapture();//设置鼠标捕获
+//
+//    CDialog::OnLButtonDown(nFlags, point);
+//}
+//void CBasicDemoDlg::OnPicLButtonUp(UINT nFlags, CPoint point)
+//{
+//	// TODO: 在此添加消息处理程序代码和/或调用默认值
+//	if (this == GetCapture())
+//	{
+//		ReleaseCapture();
+//	}
+//
+//	m_bLBDown = FALSE;
+//
+//	Invalidate(FALSE);//更新界面   
+//
+//	CDialog::OnLButtonUp(nFlags, point);
+//}
+//
+//#endif
 
 
-BOOL CBasicDemoDlg::OnPicEraseBkgnd(CDC* pDC)
-{
-    // TODO: 在此添加消息处理程序代码和/或调用默认值
-	  //return CDialogEx::OnEraseBkgnd(pDC);不需要重绘背景  
-	return TRUE;
-  //  return CDialog::OnEraseBkgnd(pDC);
-}
+
+//void CBasicDemoDlg::OnPicMouseMove(UINT nFlags, CPoint point)
+//{
+//    // TODO: 在此添加消息处理程序代码和/或调用默认值
+//	if (m_bLBDown)
+//	{
+//		m_EndPoint = point;
+//
+//		Invalidate(FALSE);//更新界面  
+//	}
+//    CDialog::OnMouseMove(nFlags, point);
+//}
+
+
+//BOOL CBasicDemoDlg::OnPicEraseBkgnd(CDC* pDC)
+//{
+//    // TODO: 在此添加消息处理程序代码和/或调用默认值
+//	  //return CDialogEx::OnEraseBkgnd(pDC);不需要重绘背景  
+//	return TRUE;
+//  //  return CDialog::OnEraseBkgnd(pDC);
+//}
 
 
 void CBasicDemoDlg::OnDeltaposSpin1(NMHDR* pNMHDR, LRESULT* pResult)
@@ -2452,7 +2469,7 @@ void CBasicDemoDlg::OnDeltaposSpin1(NMHDR* pNMHDR, LRESULT* pResult)
   //  ((CEdit*)GetDlgItem(IDC_EDIT1))->SetSel(m_editDelay.GetLength(), m_editDelay.GetLength());
 	if (pNMUpDown->iDelta == -1) // 如果此值为-1 , 说明点击了Spin的往下的箭头  
 	{
-        result = _ttoi(m_editDelay) - 500;
+        result = _ttoi(m_editDelay) - 5000;
 
         if (result < 0)
             result = 0;
@@ -2460,7 +2477,7 @@ void CBasicDemoDlg::OnDeltaposSpin1(NMHDR* pNMHDR, LRESULT* pResult)
 	}
 	else if (pNMUpDown->iDelta == 1) // 如果此值为1, 说明点击了Spin的往上的箭头  
 	{
-		result = _ttoi(m_editDelay) + 500;
+		result = _ttoi(m_editDelay) + 5000;
 
 		if (result > 9000000)
 			result = 9000000;
@@ -2509,4 +2526,196 @@ void CBasicDemoDlg::OnChangeEdit1()
 	}
     ((CEdit*)GetDlgItem(IDC_EDIT1))->SetSel(m_editDelay.GetLength(), m_editDelay.GetLength());
     // TODO:  在此添加控件通知处理程序代码
+}
+
+void CBasicDemoDlg::OnMouseMove(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+	CPoint mousePoint;                      //定义当前鼠标的坐标点
+	GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
+	ScreenToClient(&mousePoint);
+	if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
+		return;  // MessageBox(L"out");
+	if (m_bLBDown)
+	{
+		startPoint.x += point.x - m_StartPoint.x;
+		startPoint.y += point.y - m_StartPoint.y;
+		endPoint.x += point.x - m_StartPoint.x;  //计算缩放后的矩形终点坐标
+		endPoint.y += point.y - m_StartPoint.y;
+	}
+    CDialog::OnMouseMove(nFlags, point);
+}
+
+
+void CBasicDemoDlg::OnLButtonUp(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+    m_bLBDown = FALSE;
+    CDialog::OnLButtonUp(nFlags, point);
+}
+
+
+void CBasicDemoDlg::OnLButtonDown(UINT nFlags, CPoint point)
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+	CPoint mousePoint;                      //定义当前鼠标的坐标点
+	GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
+	ScreenToClient(&mousePoint);
+	if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
+		return;  // MessageBox(L"out");
+	m_StartPoint = point;
+
+	//m_EndPoint = point;
+
+	m_bLBDown = TRUE;
+
+	SetCapture();//设置鼠标捕获
+    CDialog::OnLButtonDown(nFlags, point);
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtonmoveup()
+{
+    // TODO: 在此添加控件通知处理程序代码
+	if (m_rotate == 0)
+	{
+		if (endPoint.x + 40 > m_picWeight)
+			return;
+		startPoint.x += 40;
+		endPoint.x += 40;
+	}
+	else
+		if (m_rotate == 1)
+		{
+			if (startPoint.y - 40 * h_w_float < 0)
+				return;
+			startPoint.y -= 40 * h_w_float;
+			endPoint.y -= 40 * h_w_float;
+		}
+		else
+			if (m_rotate == 2)
+			{
+				if (startPoint.x - 40 < 0)
+					return;
+				startPoint.x -= 40;
+				endPoint.x -= 40;
+			}
+			else
+			{
+				if (endPoint.y + 40 * h_w_float > m_picHeight)
+					return;
+				startPoint.y += 40 * h_w_float;
+				endPoint.y += 40 * h_w_float;
+			}
+
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtonmoveleft()
+{
+	// TODO: 在此添加控件通知处理程序代码if (m_rotate == 0)
+	if (m_rotate == 0)
+	{
+		if (startPoint.y - 40 * h_w_float < 0)
+			return;
+		startPoint.y -= 40 * h_w_float;
+		endPoint.y -= 40 * h_w_float;
+	}
+	else
+		if (m_rotate == 1)
+		{
+			if (startPoint.x - 40 < 0)
+				return;
+			startPoint.x -= 40;
+			//startPoint.y -= 40 * h_w_float;
+			endPoint.x -= 40;  //计算缩放后的矩形终点坐标
+		}
+		else
+			if (m_rotate == 2)
+			{
+				if (endPoint.y + 40 * h_w_float > m_picHeight)
+					return;
+				startPoint.y += 40 * h_w_float;
+				endPoint.y += 40 * h_w_float;
+			}
+			else
+			{
+				if (endPoint.x + 40 > m_picWeight)
+					return;
+				startPoint.x += 40;
+				endPoint.x += 40;
+			}
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtonmoveright()
+{
+    // TODO: 在此添加控件通知处理程序代码
+	if (m_rotate == 0)
+	{
+		if (endPoint.y + 40 * h_w_float > m_picHeight)
+			return;
+		startPoint.y += 40 * h_w_float;
+		endPoint.y += 40 * h_w_float;
+	}
+	else
+		if (m_rotate == 1)
+		{
+			if (endPoint.x + 40 > m_picWeight)
+				return;
+			startPoint.x += 40;
+			endPoint.x += 40;
+		}
+		else
+			if (m_rotate == 2)
+			{
+				if (startPoint.y - 40 * h_w_float < 0)
+					return;
+				startPoint.y -= 40 * h_w_float;
+				endPoint.y -= 40 * h_w_float;
+			}
+			else
+			{
+				if (startPoint.x - 40 < 0)
+					return;
+				startPoint.x -= 40;
+				endPoint.x -= 40;
+			}
+
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtonmovedown()
+{
+    // TODO: 在此添加控件通知处理程序代码
+	if (m_rotate == 0)
+	{
+		if (startPoint.x - 40 < 0)
+			return;
+		startPoint.x -= 40;
+		endPoint.x -= 40;
+	}
+	else
+		if (m_rotate == 1)
+		{
+			if (endPoint.y + 40 * h_w_float > m_picHeight)
+				return;
+			startPoint.y += 40 * h_w_float;
+			endPoint.y += 40 * h_w_float;
+		}
+		else
+			if (m_rotate == 2)
+			{
+				if (endPoint.x + 40 > m_picWeight)
+					return;
+				startPoint.x += 40;
+				endPoint.x += 40;
+			}
+			else
+			{
+				if (startPoint.y - 40 * h_w_float < 0)
+					return;
+				startPoint.y -= 40 * h_w_float;
+				endPoint.y -= 40 * h_w_float;
+			}
 }

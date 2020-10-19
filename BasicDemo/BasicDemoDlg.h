@@ -31,12 +31,9 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
-
-	afx_msg void OnPicLButtonDown(UINT nFlags, CPoint point);
-	afx_msg void OnPicLButtonUp(UINT nFlags, CPoint point);
-	afx_msg void OnPicMouseMove(UINT nFlags, CPoint point);
-	afx_msg BOOL OnPicEraseBkgnd(CDC* pDC);
-	afx_msg void OnPicNcLButtonDblClk(UINT nHitTest, CPoint point);
+//	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	DECLARE_MESSAGE_MAP()
 
 /*ch:控件对应变量 | en:Control corresponding variable*/
@@ -211,7 +208,7 @@ public:
 public:
     void DrawPicToHDC(IplImage* img, UINT ID);
     int RGB2BGR(unsigned char* pRgbData, unsigned int nWidth, unsigned int nHeight);
-    bool Convert2Mat(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char* pData);
+    bool ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char* pData);
     afx_msg void OnBnClickedButtonDiff();
     // 做差用时
     CString use_time;
@@ -274,4 +271,10 @@ public:
     CStatic m_diff_display;
     HACCEL   m_hAccel;
     float h_w_float;
+
+    afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+    afx_msg void OnBnClickedButtonmoveup();
+    afx_msg void OnBnClickedButtonmoveleft();
+    afx_msg void OnBnClickedButtonmoveright();
+    afx_msg void OnBnClickedButtonmovedown();
 };

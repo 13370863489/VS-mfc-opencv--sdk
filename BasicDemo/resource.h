@@ -48,6 +48,10 @@
 #define IDC_SPIN1                       1045
 #define IDC_EDIT1                       1046
 #define IDC_STATIC_delay                1048
+#define IDC_BUTTON_move_up              1049
+#define IDC_BUTTON_move_left            1050
+#define IDC_BUTTON_move_right           1051
+#define IDC_BUTTON_move_down            1052
 #define ID_add                          32771
 #define ID_subtract                     32772
 
@@ -57,7 +61,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        132
 #define _APS_NEXT_COMMAND_VALUE         32774
-#define _APS_NEXT_CONTROL_VALUE         1049
+#define _APS_NEXT_CONTROL_VALUE         1051
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
