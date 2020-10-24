@@ -550,7 +550,7 @@ void CSetIODlg::OnBnClickedEnumButton()
     m_ctrlDeviceCombo.SetCurSel(0);
     if (0 == m_stDevList.nDeviceNum)
     {
-        ShowErrorMsg(TEXT("No device"), 0);
+        ShowErrorMsg(TEXT("没发现相机！"), 0);
         return;
     }
     m_ctrlOpenButton.EnableWindow(TRUE);

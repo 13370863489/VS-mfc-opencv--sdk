@@ -8,6 +8,7 @@
 #define IDD_BasicDemo_DIALOG            102
 #define IDR_MAINFRAME                   128
 #define IDR_ACCELERATOR1                131
+#define IDD_DIALOG_setroi               138
 #define IDC_ENUM_BUTTON                 1000
 #define IDC_OPEN_BUTTON                 1001
 #define IDC_CLOSE_BUTTON                1002
@@ -35,6 +36,7 @@
 #define IDC_STATIC_time                 1029
 #define IDC_BUTTON1                     1030
 #define IDC_BUTTON_save                 1030
+#define IDC_BUTTON_loadimg              1030
 #define IDC_EDIT_Threshold              1034
 #define IDC_BUTTON_Threshold            1035
 #define IDC_EDIT_maxvalue               1036
@@ -52,6 +54,12 @@
 #define IDC_BUTTON_move_left            1050
 #define IDC_BUTTON_move_right           1051
 #define IDC_BUTTON_move_down            1052
+#define IDC_STATIC_message              1054
+#define IDC_BUTTON_adjust               1055
+#define IDC_BUTTON_roiset               1057
+#define IDCANCEL                        1060
+#define IDC_STATIC_image                1061
+#define IDC_STATIC_errorMsg             1062
 #define ID_add                          32771
 #define ID_subtract                     32772
 
@@ -59,9 +67,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        132
+#define _APS_NEXT_RESOURCE_VALUE        140
 #define _APS_NEXT_COMMAND_VALUE         32774
-#define _APS_NEXT_CONTROL_VALUE         1051
+#define _APS_NEXT_CONTROL_VALUE         1063
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

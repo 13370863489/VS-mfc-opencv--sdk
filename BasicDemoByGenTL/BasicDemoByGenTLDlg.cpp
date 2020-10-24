@@ -282,7 +282,7 @@ void CBasicDemoByGenTLDlg::OnBnClickedEnumIfButton()
 
     if (m_stIFList.nInterfaceNum == 0)
     {
-        ShowErrorMsg(_TEXT("No Device"), 0);
+        ShowErrorMsg(_TEXT("没发现相机！"), 0);
         return;
     }
     for (unsigned int i = 0; i < m_stIFList.nInterfaceNum; i++)
@@ -330,7 +330,7 @@ void CBasicDemoByGenTLDlg::OnBnClickedEnumDevButton()
 
     if (0 == m_stDevList.nDeviceNum)
     {
-        ShowErrorMsg(TEXT("No device"), 0);
+        ShowErrorMsg(TEXT("没发现相机！"), 0);
         return;
     }
     m_ctrlDeviceCombo.SetCurSel(0);

@@ -5,6 +5,7 @@
 #include "MvCamera.h"
 #include "CvvImage.h"
 #include "SoftKey.h"
+#include "atl.h"
 #define STATUS_ERROR            -1
 #define IMAGE_NAME_LEN          256
 
@@ -35,7 +36,7 @@ protected:
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	DECLARE_MESSAGE_MAP()
-
+  
 /*ch:控件对应变量 | en:Control corresponding variable*/
 private:
     /*ch:初始化 | en:Initialization*/
@@ -64,7 +65,7 @@ private:
     double  m_dFrameRateEdit;   
     CButton m_ctrlGetParameterButton;           // ch:获取参数 | en:Get parameter
     CButton m_ctrlSetParameterButton;           // ch:设置参数 | en:Set parameter
-   
+    bool m_isSetRoi;
     /*ch:设备显示下拉框 | en:Device display drop-down box*/
     CComboBox m_ctrlDeviceCombo;                // ch:枚举到的设备 | en:Enumerated device
     int      m_nDeviceCombo;
@@ -258,7 +259,7 @@ public:
     void MatToCImage(cv::Mat mat, ATL::CImage& cimage);
     void HideControls();
     CRect picRect;
-    CWnd* pWnd = NULL;
+   
 
 
     // 设置延迟拍照时间
@@ -277,4 +278,11 @@ public:
     afx_msg void OnBnClickedButtonmoveleft();
     afx_msg void OnBnClickedButtonmoveright();
     afx_msg void OnBnClickedButtonmovedown();
+    void alignImages(cv::Mat& im1, cv::Mat& im2, cv::Mat& im1Reg, cv::Mat& h);
+    int  offsetx, offsety;
+    afx_msg void OnBnClickedButtonadjust();
+    BOOL m_adjust;
+    bool isGotImg;
+    int ADJUST;
+    afx_msg void OnBnClickedButtonroiset();
 };

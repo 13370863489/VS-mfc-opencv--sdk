@@ -204,7 +204,7 @@ void CForceIpDemoDlg::OnBnClickedEnumDeviceButton()
 
     if (MV_OK != nRet)
     {
-        ShowErrorMsg(TEXT("No device"), nRet);
+        ShowErrorMsg(TEXT("没发现相机！"), nRet);
         return;
     }
 
@@ -286,7 +286,7 @@ void CForceIpDemoDlg::OnBnClickedEnumDeviceButton()
 
     if (0 == m_stDevList.nDeviceNum)
     {
-        ShowErrorMsg(TEXT("No device"), 0);
+        ShowErrorMsg(TEXT("没发现相机！"), 0);
         return;
     }
     

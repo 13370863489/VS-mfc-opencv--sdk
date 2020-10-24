@@ -13,12 +13,19 @@
 #include "SoftKey.h"
 #include <afxwin.h>
 #include <Dbt.h>
+#include "opencv2/features2d/features2d.hpp"
+#include "opencv2/features2d.hpp"
+//#include "pch.h"
+#include "opencv2/calib3d/calib3d.hpp"
+#include "SetRoi.h"
 using namespace std;
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
 using namespace cv;
+
+//using namespace features2d;
 // CAboutDlg dialog used for App About
 class CAboutDlg : public CDialog
 {
@@ -34,6 +41,8 @@ public:
 // Implementation
 protected:
 	DECLARE_MESSAGE_MAP()
+public:
+    afx_msg void OnBnClickedOk();
 };
 
 CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
@@ -47,6 +56,7 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 }
 
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
+    ON_BN_CLICKED(IDOK, &CAboutDlg::OnBnClickedOk)
 END_MESSAGE_MAP()
 
 // CBasicDemoDlg dialog
@@ -73,6 +83,7 @@ CBasicDemoDlg::CBasicDemoDlg(CWnd* pParent /*=NULL*/)
     , m_Threshold(30)
     , m_maxvalue(200)
     , m_editDelay(_T("0"))
+    , m_isSetRoi(false)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
     memset(&m_stImageInfo, 0, sizeof(MV_FRAME_OUT_INFO_EX));
@@ -151,6 +162,8 @@ BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
     ON_BN_CLICKED(IDC_BUTTON_move_left, &CBasicDemoDlg::OnBnClickedButtonmoveleft)
     ON_BN_CLICKED(IDC_BUTTON_move_right, &CBasicDemoDlg::OnBnClickedButtonmoveright)
     ON_BN_CLICKED(IDC_BUTTON_move_down, &CBasicDemoDlg::OnBnClickedButtonmovedown)
+    ON_BN_CLICKED(IDC_BUTTON_adjust, &CBasicDemoDlg::OnBnClickedButtonadjust)
+    ON_BN_CLICKED(IDC_BUTTON_roiset, &CBasicDemoDlg::OnBnClickedButtonroiset)
 END_MESSAGE_MAP()
 
 // ch:取流线程 | en:Grabbing thread
@@ -188,6 +201,7 @@ BOOL CBasicDemoDlg::OnInitDialog()
 
 
     ReadIni();
+
 	CMenu* pSysMenu = GetSystemMenu(FALSE);
 	if (pSysMenu != NULL)
 	{
@@ -286,17 +300,18 @@ LPCTSTR lpFileName;//是完整的INI文件名.
 */
 void CBasicDemoDlg::ReadIni()
 {
-    CString str;
+    CString str,adjust;
     CFileFind finder;   //查找是否存在ini文件，若不存在，则生成一个新的默认设置的ini文件，这样就保证了我们更改后的设置每次都可用  
     BOOL ifFind = finder.FindFile(_T("config.ini"));
+   // BOOL ifFind = finder.FindFile(_T("config.ini"));
     if (!ifFind)
     {
         MessageBox(L"no config.ini file");
     }
     GetPrivateProfileString(_T("config"), _T("LOG"), CString("-1"), str.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));    
-  
+    GetPrivateProfileString(_T("config"), _T("ADJUST"), CString("-1"), adjust.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));
     m_WriteLog = (str == "1")?TRUE:FALSE;
-  
+    ADJUST = _ttoi(adjust);
 }
 BOOL CBasicDemoDlg::DoRegisterDeviceInterface()
 {
@@ -422,13 +437,16 @@ int CBasicDemoDlg::EnableControls(BOOL bIsCameraReady)
     GetDlgItem(IDC_BUTTON_Threshold)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_BUTTON_maxvalue)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_BUTTON_save)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
-    GetDlgItem(IDC_BUTTON_DIFF)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_BUTTON_DIFF)->EnableWindow(m_isSetRoi ? TRUE : FALSE);
     GetDlgItem(IDC_BUTTON_toleft)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_BUTTON_toright)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_EDIT_Threshold)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_EDIT_maxvalue)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_EDIT1)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
     GetDlgItem(IDC_SPIN1)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+	GetDlgItem(IDC_BUTTON_adjust)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+//	GetDlgItem(IDC_BUTTON_roiset)->EnableWindow(m_bStartGrabbing ? TRUE : FALSE);
+    GetDlgItem(IDC_BUTTON_roiset)->EnableWindow(isGotImg ? TRUE : FALSE);
     
         
     return MV_OK;
@@ -1037,9 +1055,162 @@ void CBasicDemoDlg::DrawPicToHDC(IplImage* img, UINT ID)
     cimg.DrawToHDC(hDC, &rect); // 将图片绘制到显示控件的指定区域内
     ReleaseDC(pDC);
 }
+//最大特征点数
+const int MAX_FEATURES = 500;
+//好的特征点数
+const float GOOD_MATCH_PERCENT = 0.15f;
+
+/**
+ * @brief 图像对齐
+ *
+ * @param im1 对齐图像
+ * @param im2 模板图像
+ * @param im1Reg 输出图像
+ * @param h
+ */
+void CBasicDemoDlg::alignImages(cv::Mat& im1, cv::Mat& im2, cv::Mat& im1Reg, cv::Mat& h)
+{
+    try
+    {
+        // Convert images to grayscale
+        cv::Mat im1Gray, im2Gray;
+        //转换为灰度图
+        cvtColor(im1, im1Gray, CV_BGR2GRAY);
+        // cvtColor(im2, im2Gray, CV_BGR2GRAY);
+        im2Gray = im2;
+        // Variables to store keypoints and descriptors
+        //关键点
+        std::vector<KeyPoint> keypoints1, keypoints2;
+        //特征描述符
+        cv::Mat descriptors1, descriptors2;
+
+        // Detect ORB features and compute descriptors. 计算ORB特征和描述子
+        Ptr<Feature2D> orb = ORB::create(MAX_FEATURES);
+        orb->detectAndCompute(im1Gray, Mat(), keypoints1, descriptors1);
+        orb->detectAndCompute(im2Gray, Mat(), keypoints2, descriptors2);
+
+        // Match features. 特征点匹配
+        std::vector<DMatch> matches;
+        //汉明距离进行特征点匹配
+        Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
+        matcher->match(descriptors1, descriptors2, matches, Mat());
+
+        // Sort matches by score 按照特征点匹配结果从优到差排列
+        std::sort(matches.begin(), matches.end());
+
+        // Remove not so good matches 移除不好的特征点
+        const int numGoodMatches = matches.size() * GOOD_MATCH_PERCENT;
+        matches.erase(matches.begin() + numGoodMatches, matches.end());
+        //  im1Gray.at(1).pt.x;
+
+          // Draw top matches
+        Mat imMatches;
+        //画出特征点匹配图
+        drawMatches(im1, keypoints1, im2, keypoints2, matches, imMatches);
+        imwrite("matches.jpg", imMatches);
+
+        // Extract location of good matches
+        std::vector<Point2f> points1, points2;
+
+        //保存对应点
+        if (matches.size() == 0)
+            return;
+        if (matches.size() < 3)
+            return;// MessageBox(L"去抖定位点小于5个！建议重新取定位区！");
+        //分三组进行筛选确定真实的偏移量
+        int inx1, iny1, inx2, iny2, inx3, iny3 , inx , iny;
+        int osx1, osy1, osx2, osy2, osx3, osy3;
+        inx1 = matches[0].queryIdx;
+        iny1 = matches[0].trainIdx;
+		inx2 = matches[1].queryIdx;
+		iny2 = matches[1].trainIdx;
+
+        osx1 = keypoints1.at(inx1).pt.x - keypoints2.at(iny1).pt.x;
+        osy1 = keypoints1.at(inx1).pt.y - keypoints2.at(iny1).pt.y;
+		osx2 = keypoints1.at(inx2).pt.x - keypoints2.at(iny2).pt.x;
+		osy2 = keypoints1.at(inx2).pt.y - keypoints2.at(iny2).pt.y;
+		
+        if (osx1 == osx2 && osy1 == osy2)
+        {
+			offsetx = osx1;
+			offsety = osy1;
+        }
+        else
+        {
+			inx3 = matches[2].queryIdx;
+			iny3 = matches[2].trainIdx;
+			osx3 = keypoints1.at(inx3).pt.x - keypoints2.at(iny3).pt.x;
+			osy3 = keypoints1.at(inx3).pt.y - keypoints2.at(iny3).pt.y;
+			
+            if (osx1 == osx3 && osy1 == osy3)
+            {
+				offsetx = osx1;
+				offsety = osy1;
+            }
+            else
+                if (osx2 == osx3 && osy2 == osy3)
+                {
+					{
+						offsetx = osx2;
+						offsety = osy2;
+					}
+                }
+        }
+		
+
+       
+
+		
+        //for (size_t i = 0; i < matches.size(); i++)
+        //{
+        //    //  CString str, str2 , str3, str4;
+        //    int in1, in2;
+        //    //queryIdx是对齐图像的描述子和特征点的下标。
+        ////    points1.push_back(keypoints1[matches[i].queryIdx].pt);
+        //    //queryIdx是是样本图像的描述子和特征点的下标。
+        ////    points2.push_back(keypoints2[matches[i].trainIdx].pt);
+
+        //    in1 = matches[i].queryIdx;
+        //    in2 = matches[i].trainIdx;
+        //    //  sprintf(str, "%d\n", keypoints1.at(i).pt.x);
+        //    /*  str.Format(L"%f", keypoints1.at(in1).pt.x);
+        //      str2.Format(L"%f", keypoints1.at(in1).pt.y);
+        //      str3.Format(L"%f", keypoints2.at(in2).pt.x);
+        //      str4.Format(L"%f", keypoints2.at(in2).pt.y);*/
+
+
+        //    offsetx = keypoints1.at(in1).pt.x - keypoints2.at(in2).pt.x;
+        //    offsety = keypoints1.at(in1).pt.y - keypoints2.at(in2).pt.y;
+        //    break;
+        //    //  int a = keypoints1.at(i).pt.x;
+        //   //   MessageBox(str + str2 + str3 + str4);
+        //}
+
+        // Find homography 计算Homography，RANSAC随机抽样一致性算法
+      //  h = findHomography(points1, points2, RANSAC);
+
+        // Use homography to warp image 映射
+     //   warpPerspective(im1, im1Reg, h, im2.size());
+    }
+    catch (CMemoryException* e)
+    {
+    
+    }
+    catch (CFileException* e)
+    {
+
+    }
+    catch (CException* e)
+    {
+      
+    }
+ 
+}
+
 /*
 
 */
+//CPoint SetRoi::RoiPoint_start, SetRoi::RoiPoint_end;
 bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char* pData)
 {
    
@@ -1069,21 +1240,76 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
         return false;
     }
     orgPic = srcImage;
-    srcImage = srcImage(Rect(startPoint.x, startPoint.y, endPoint.x - startPoint.x, endPoint.y - startPoint.y));
+    CString str, str1 ,str2;
+    if(showdiff && m_adjust)
+	{
+        //这一部分是定位
+		cv::Mat imRealTime, imBmp, imReg, h;
+        long rpx, rpy, rpw, rph;
+        rpx = SetRoi::RoiPoint_start.x;
+        rpy = SetRoi::RoiPoint_start.y;
+        rpw = SetRoi::RoiPoint_end.x - SetRoi::RoiPoint_start.x;
+        rph = SetRoi::RoiPoint_end.y - SetRoi::RoiPoint_start.y;
+
+		imRealTime = srcImage(Rect(rpx, rpy, rpw , rph));
+		imBmp =    bmpImgGray(Rect(rpx, rpy, rpw , rph));
+        str2.Format(L"取图ROI:(x%d*y%d,w%d,h%d)", rpx, rpy , rpw,rph);  //两个值是偏移了多少
+		alignImages(imRealTime, imBmp, imReg, h);
+	}
+  
+        orgPic = srcImage;
+        int px, py, ph, pw;  
+        
+        px = startPoint.x;
+        py = startPoint.y;
+        ph = endPoint.y - startPoint.y;
+        pw = endPoint.x - startPoint.x;
+        str.Format(L"偏移X:%d*偏移Y:%d", offsetx, offsety);  //两个值是偏移了多少
+        GetDlgItem(IDC_STATIC_message)->SetWindowText(str);
+    if (m_adjust)
+    {
+        str = L"去抖开:" + str;
+        //如果偏移太大，可能就是定位不准确或者 产生了错误
+        GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText(L"错误信息：无");
+        if (startPoint.x + offsetx < 0 || offsetx > ADJUST)
+        {
+            offsetx = 0;
+            
+            GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText(L"错误信息：横向跑偏太大！");
+        }
+        if (startPoint.y + offsety < 0 || offsety > ADJUST)
+        {
+            offsety = 0;
+            GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText(L"错误信息：竖向跑偏太大！");
+        }
+       
+        px +=  offsetx;
+        py +=  offsety;
+        ph -= offsety;
+        pw -= offsetx;
+    }
+	str1.Format(L" 纠偏后ROI:(%d,%d)*(%d,%d)", px, py, pw, ph);
+	GetDlgItem(IDC_STATIC_message)->SetWindowText(str + str1 + str2);
+    //注意下面的函数后面两个参数值的是宽度和高度，不是坐标值
+    srcImage = srcImage(Rect( px, py , pw , ph ));
     try {
         if (showdiff)
           {
             cv::Mat bmpImgGrayRoi;
-            bmpImgGrayRoi = bmpImgGray(Rect(startPoint.x, startPoint.y, endPoint.x - startPoint.x, endPoint.y - startPoint.y));
+            bmpImgGrayRoi = bmpImgGray(Rect(startPoint.x, startPoint.y, pw, ph));
 
                 cvtColor(srcImage , srcImageGray, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
                 cv::absdiff(srcImageGray, bmpImgGrayRoi,diffImgGray);    //图像做差
+
+				/*threshold是设定的阈值
+					maxval是当灰度值大于（或小于）阈值时将该灰度值赋成的值
+					type规定的是当前二值化的方式*/
                 cv::threshold(diffImgGray, diffImgGray, m_Threshold,m_maxvalue, CV_THRESH_BINARY);  //进行阈值处理 二值化
                  
                 // 4.腐蚀  
-                Mat kernel_erode = getStructuringElement(MORPH_RECT, Size(3, 3));
-                Mat kernel_dilate = getStructuringElement(MORPH_RECT, Size(18, 18));
-                erode(diffImgGray, diffImgGray, kernel_erode);
+               // Mat kernel_erode = getStructuringElement(MORPH_RECT, Size(3, 3));
+                //Mat kernel_dilate = getStructuringElement(MORPH_RECT, Size(18, 18));
+               // erode(diffImgGray, diffImgGray, kernel_erode);
                
                 // 5.膨胀  
                // dilate(imresult, imresult, kernel_dilate);
@@ -1107,6 +1333,7 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
                     str.Format(_T("%d"), contours.size());
                     CStatic* pStatic = (CStatic*)GetDlgItem(IDC_BUTTON_showerror);
                     pStatic->SetWindowText(str);
+                  //  MessageBeep(0x00000000L);
                 }
                 double timestamp = (double)clock() / CLOCKS_PER_SEC; // get current time in seconds  
 
@@ -1137,7 +1364,7 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
         srcImage.release();
         
     }
-    catch (cv::Exception& ex) {
+    catch (Exception ex) {
 
           //  CBasicDemoDlg lg = new CBasicDemoDlg();
             CString cstr(ex.msg.c_str());
@@ -1223,7 +1450,7 @@ void CBasicDemoDlg::ShowImage(cv::Mat img, UINT ID)// ID 是Picture Control控件的
    // CRect   rect;
     ATL::CImage  q;
     MatToCImage(img, q);
-   // CWnd* pWnd = NULL;
+    CWnd* pWnd = NULL;
 	pWnd = GetDlgItem(ID);//获取控件句柄
 	pWnd->GetClientRect(&picRect);//获取Picture Control控件的客户区
     float cx = img.cols;
@@ -1257,6 +1484,7 @@ void CBasicDemoDlg::ShowImage(cv::Mat img, UINT ID)// ID 是Picture Control控件的
     SetStretchBltMode(pDc->m_hDC, ModeOld);
     
     ReleaseDC(pDc);//释放指针空间
+    pWnd = NULL;
 }
 //void CBasicDemoDlg::ResizeImage(cv::Mat img)
 //{
@@ -1290,8 +1518,8 @@ void CBasicDemoDlg::ShowImage(cv::Mat img, UINT ID)// ID 是Picture Control控件的
 int CBasicDemoDlg::GrabThreadProcess()
 {
     // ch:从相机中获取一帧图像大小 | en:Get size of one frame from camera
-    try
-    {
+   /* try
+    {*/
 
 
         MVCC_INTVALUE_EX stIntValue = { 0 };
@@ -1348,7 +1576,7 @@ int CBasicDemoDlg::GrabThreadProcess()
                     continue;
                 }
                 //转换为MAT 格式并显示
-                WriteLog(L"准备进入convert2Mat");
+              //  WriteLog(L"准备进入convert2Mat");
                 bConvertRet = ImageMain(&stImageInfo, m_pGrabBuf);
                 if (!bConvertRet)
                 {
@@ -1364,13 +1592,13 @@ int CBasicDemoDlg::GrabThreadProcess()
                 }
             }
         }
-    }
-    catch (Exception ex)        
-    {
-   //     CBasicDemoDlg lg = new CBasicDemoDlg();
-        CString cstr(ex.msg.c_str());
-        WriteLog(L"ERROR:  " + __LINE__ +  cstr);
-    }
+   // }
+   // catch (Exception ex)        
+   // {
+   ////     CBasicDemoDlg lg = new CBasicDemoDlg();
+   //     CString cstr(ex.msg.c_str());
+   //     WriteLog(L"ERROR:  " + __LINE__ +  cstr);
+   // }
     return MV_OK;
 }
 
@@ -1467,7 +1695,7 @@ void CBasicDemoDlg::OnBnClickedEnumButton()
 
     if (0 == m_stDevList.nDeviceNum)
     {
-        ShowErrorMsg(TEXT("No device"), 0);
+        ShowErrorMsg(TEXT("没发现相机！"), 0);
         return;
     }
     m_ctrlDeviceCombo.SetCurSel(0);
@@ -1491,7 +1719,7 @@ void CBasicDemoDlg::OnBnClickedOpenButton()
     int nRet = OpenDevice();
     if (MV_OK != nRet)
     {
-        ShowErrorMsg(TEXT("Open Fail"), nRet);
+        ShowErrorMsg(TEXT("打开设备失败！"), nRet);
         return;
     }
 
@@ -1511,10 +1739,10 @@ void CBasicDemoDlg::OnBnClickedOpenButton()
     m_picHeight = height.nCurValue;
     m_picWeight = width.nCurValue;
 	
-    startPoint.x = 0;
-	startPoint.y = 0;
-	endPoint.x = m_picWeight;
-	endPoint.y = m_picHeight;
+    startPoint.x = 20;
+	startPoint.y = 20;
+	endPoint.x = m_picWeight-20;
+	endPoint.y = m_picHeight-20;
 	
 	h_w_float = float(m_picHeight) / float(m_picWeight);//获得图片的宽高比
 //	rc.SetRect(0, 0, m_picWeight, m_picHeight);//设置矩形的两个角点
@@ -1700,7 +1928,7 @@ void CBasicDemoDlg::OnBnClickedSetParameterButton()
     
     if (true == bIsSetSucceed)
     {
-        ShowErrorMsg(TEXT("Set Parameter Succeed"), nRet);
+       // ShowErrorMsg(TEXT("Set Parameter Succeed"), nRet);
     }
 
     return;
@@ -2057,6 +2285,8 @@ void CBasicDemoDlg::OnBnClickedButtonsave()
       //  m_rotate = 3;
         Sleep(200);  //给点恢复现场的时间
         cv::imwrite("1.bmp", orgPic);  //写入图片srcImage 
+        isGotImg = true;
+        EnableControls(true);
     }
     catch (Exception ex)
     {
@@ -2263,6 +2493,9 @@ void CBasicDemoDlg::HideControls()
 	GetDlgItem(IDC_BUTTON_move_left)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
 	GetDlgItem(IDC_BUTTON_move_right)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
 	GetDlgItem(IDC_BUTTON_move_down)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    
+    GetDlgItem(IDC_BUTTON_adjust)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_BUTTON_roiset)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
 } 
 void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
@@ -2531,18 +2764,18 @@ void CBasicDemoDlg::OnChangeEdit1()
 void CBasicDemoDlg::OnMouseMove(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
-	CPoint mousePoint;                      //定义当前鼠标的坐标点
-	GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
-	ScreenToClient(&mousePoint);
-	if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
-		return;  // MessageBox(L"out");
-	if (m_bLBDown)
-	{
-		startPoint.x += point.x - m_StartPoint.x;
-		startPoint.y += point.y - m_StartPoint.y;
-		endPoint.x += point.x - m_StartPoint.x;  //计算缩放后的矩形终点坐标
-		endPoint.y += point.y - m_StartPoint.y;
-	}
+	//CPoint mousePoint;                      //定义当前鼠标的坐标点
+	//GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
+	//ScreenToClient(&mousePoint);
+	//if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
+	//	return;  // MessageBox(L"out");
+	//if (m_bLBDown)
+	//{
+	//	startPoint.x += point.x - m_StartPoint.x;
+	//	startPoint.y += point.y - m_StartPoint.y;
+	//	endPoint.x += point.x - m_StartPoint.x;  //计算缩放后的矩形终点坐标
+	//	endPoint.y += point.y - m_StartPoint.y;
+	//}
     CDialog::OnMouseMove(nFlags, point);
 }
 
@@ -2550,7 +2783,7 @@ void CBasicDemoDlg::OnMouseMove(UINT nFlags, CPoint point)
 void CBasicDemoDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
-    m_bLBDown = FALSE;
+ /*   m_bLBDown = FALSE;*/
     CDialog::OnLButtonUp(nFlags, point);
 }
 
@@ -2558,18 +2791,18 @@ void CBasicDemoDlg::OnLButtonUp(UINT nFlags, CPoint point)
 void CBasicDemoDlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
-	CPoint mousePoint;                      //定义当前鼠标的坐标点
-	GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
-	ScreenToClient(&mousePoint);
-	if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
-		return;  // MessageBox(L"out");
-	m_StartPoint = point;
+	//CPoint mousePoint;                      //定义当前鼠标的坐标点
+	//GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
+	//ScreenToClient(&mousePoint);
+	//if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
+	//	return;  // MessageBox(L"out");
+	//m_StartPoint = point;
 
-	//m_EndPoint = point;
+	////m_EndPoint = point;
 
-	m_bLBDown = TRUE;
+	//m_bLBDown = TRUE;
 
-	SetCapture();//设置鼠标捕获
+	//SetCapture();//设置鼠标捕获
     CDialog::OnLButtonDown(nFlags, point);
 }
 
@@ -2718,4 +2951,29 @@ void CBasicDemoDlg::OnBnClickedButtonmovedown()
 				startPoint.y -= 40 * h_w_float;
 				endPoint.y -= 40 * h_w_float;
 			}
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtonadjust()
+{
+    // TODO: 在此添加控件通知处理程序代码
+    m_adjust = !m_adjust;
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtonroiset()
+{
+    // TODO: 在此添加控件通知处理程序代码
+  SetRoi roi = new SetRoi();
+   //roi.ShowWindow(SW_SHOWNORMAL);
+   roi.DoModal();
+   m_isSetRoi = true;
+   EnableControls(TRUE);
+}
+
+
+void CAboutDlg::OnBnClickedOk()
+{
+    // TODO: 在此添加控件通知处理程序代码
+    CDialog::OnOK();
 }
