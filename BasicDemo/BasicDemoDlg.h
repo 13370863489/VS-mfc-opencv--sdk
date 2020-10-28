@@ -6,6 +6,7 @@
 #include "CvvImage.h"
 #include "SoftKey.h"
 #include "atl.h"
+#include "myskin.h"
 #define STATUS_ERROR            -1
 #define IMAGE_NAME_LEN          256
 

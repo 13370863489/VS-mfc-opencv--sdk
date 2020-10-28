@@ -61,6 +61,7 @@ BOOL CBasicDemoApp::InitInstance()
 	SetRegistryKey(_T("应用程序向导生成的本地应用程序"));
 	CBasicDemoDlg dlg;
 	m_pMainWnd = &dlg;
+	
 	INT_PTR nResponse = dlg.DoModal();
 	if (nResponse == IDOK)
 	{

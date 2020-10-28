@@ -185,7 +185,7 @@ unsigned int __stdcall GrabThread(void* pUser)
        // MessageBox(errorMsg, TEXT("PROMPT"), MB_OK | MB_ICONWARNING);
         CBasicDemoDlg lg = new CBasicDemoDlg();
         CString cstr(ex.msg.c_str());
-       lg.WriteLog(L"ERROR:  " +  cstr );
+       lg.WriteLog("ERROR:  " +  cstr );
     }
     return 0;
 }
@@ -198,10 +198,10 @@ BOOL CBasicDemoDlg::OnInitDialog()
 	// IDM_ABOUTBOX must be in the system command range.
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
-
+    //SkinH_Attach();
 
     ReadIni();
-
+    //InitMySkin();
 	CMenu* pSysMenu = GetSystemMenu(FALSE);
 	if (pSysMenu != NULL)
 	{
@@ -259,17 +259,17 @@ BOOL CBasicDemoDlg::OnInitDialog()
      //这个用于判断系统中是否存在着加密锁。不需要是指定的加密锁,
     if (ytsoftkey.FindPort(0, DevicePath) != 0)
     {
-        MessageBox(L"未找到加密锁,请插入加密锁后，再进行操作。", TEXT("错误"), MB_OK | MB_ICONERROR);
+        MessageBox("未找到加密锁,请插入加密锁后，再进行操作。", TEXT("错误"), MB_OK | MB_ICONERROR);
         PostQuitMessage(0);
     }
     if (!DoRegisterDeviceInterface())
-        MessageBox(L"注册事件通知失败。", TEXT("错误"), MB_OK | MB_ICONERROR );//'注册加密锁事件插拨通知
+        MessageBox("注册事件通知失败。", TEXT("错误"), MB_OK | MB_ICONERROR );//'注册加密锁事件插拨通知
 //////////////////////////////////////////////////////////////////////////////////////
     ChickKey();
     ShowWindow(SW_SHOWMAXIMIZED);  //最大化显示窗口
 	//m_hAccel_add = ::LoadAccelerators(AfxGetInstanceHandle(), MAKEINTRESOURCE("IDR_ACCELERATOR1"));
     m_hAccel = LoadAccelerators(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDR_ACCELERATOR1));
-	//m_hAccel_sub = LoadAccelerators(AfxGetResourceHandle(), MAKEINTRESOURCE(L"ID_subtract"));
+	//m_hAccel_sub = LoadAccelerators(AfxGetResourceHandle(), MAKEINTRESOURCE("ID_subtract"));
 
     OnBnClickedEnumButton();
 
@@ -279,11 +279,11 @@ void CBasicDemoDlg::ChickKey()
 {
     //使用普通算法一来检查是否存在指定的加密锁
     if (ytsoftkey.CheckKeyByFindort_2() == 0 && ytsoftkey.CheckKeyByReadEprom() ==0 && ytsoftkey.CheckKeyByEncstring() == 0 && ytsoftkey.CheckKeyByEncstring_New() ==0)
-        WriteLog(L"成功找到加密锁；");
-        //MessageBox(L"找到指定的加密锁", TEXT("错误"), MB_OK | MB_ICONINFORMATION);
+        WriteLog("成功找到加密锁；");
+        //MessageBox("找到指定的加密锁", TEXT("错误"), MB_OK | MB_ICONINFORMATION);
     else
     {
-        MessageBox(L"未能找到指定的加密锁", TEXT("错误"), MB_OK | MB_ICONERROR);
+        MessageBox("未能找到指定的加密锁", TEXT("错误"), MB_OK | MB_ICONERROR);
         exit(0);
     }
 
@@ -306,7 +306,7 @@ void CBasicDemoDlg::ReadIni()
    // BOOL ifFind = finder.FindFile(_T("config.ini"));
     if (!ifFind)
     {
-        MessageBox(L"no config.ini file");
+        MessageBox("no config.ini file");
     }
     GetPrivateProfileString(_T("config"), _T("LOG"), CString("-1"), str.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));    
     GetPrivateProfileString(_T("config"), _T("ADJUST"), CString("-1"), adjust.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));
@@ -1036,11 +1036,11 @@ int CBasicDemoDlg::RGB2BGR(unsigned char* pRgbData, unsigned int nWidth, unsigne
             pRgbData[j * (nWidth * 3) + i * 3 + 2] = red;
         }
     }
-  //  WriteLog(L"" + __LINE__);
+  //  WriteLog("" + __LINE__);
     }
     catch (Exception ex)
     {
-        WriteLog(L"error:RGB2BGR");
+        WriteLog("error:RGB2BGR");
     }
     return MV_OK;
 }
@@ -1089,9 +1089,15 @@ void CBasicDemoDlg::alignImages(cv::Mat& im1, cv::Mat& im2, cv::Mat& im1Reg, cv:
         orb->detectAndCompute(im1Gray, Mat(), keypoints1, descriptors1);
         orb->detectAndCompute(im2Gray, Mat(), keypoints2, descriptors2);
 
+        if (descriptors1.cols == 0 || descriptors1.rows == 0 || descriptors2.cols == 0 || descriptors2.rows == 0)
+        {
+			GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText("错误：特征点太少，建议重新选取特征区域。");
+            return;
+        }
+           
         // Match features. 特征点匹配
         std::vector<DMatch> matches;
-        //汉明距离进行特征点匹配
+        //汉明距离进行特征点匹配 
         Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
         matcher->match(descriptors1, descriptors2, matches, Mat());
 
@@ -1113,10 +1119,14 @@ void CBasicDemoDlg::alignImages(cv::Mat& im1, cv::Mat& im2, cv::Mat& im1Reg, cv:
         std::vector<Point2f> points1, points2;
 
         //保存对应点
-        if (matches.size() == 0)
-            return;
+	   /* if (matches.size() == 0)
+			return;*/
         if (matches.size() < 3)
-            return;// MessageBox(L"去抖定位点小于5个！建议重新取定位区！");
+        {
+           
+            return;
+        }
+           // MessageBox("去抖定位点小于5个！建议重新取定位区！");
         //分三组进行筛选确定真实的偏移量
         int inx1, iny1, inx2, iny2, inx3, iny3 , inx , iny;
         int osx1, osy1, osx2, osy2, osx3, osy3;
@@ -1173,10 +1183,10 @@ void CBasicDemoDlg::alignImages(cv::Mat& im1, cv::Mat& im2, cv::Mat& im1Reg, cv:
         //    in1 = matches[i].queryIdx;
         //    in2 = matches[i].trainIdx;
         //    //  sprintf(str, "%d\n", keypoints1.at(i).pt.x);
-        //    /*  str.Format(L"%f", keypoints1.at(in1).pt.x);
-        //      str2.Format(L"%f", keypoints1.at(in1).pt.y);
-        //      str3.Format(L"%f", keypoints2.at(in2).pt.x);
-        //      str4.Format(L"%f", keypoints2.at(in2).pt.y);*/
+        //    /*  str.Format("%f", keypoints1.at(in1).pt.x);
+        //      str2.Format("%f", keypoints1.at(in1).pt.y);
+        //      str3.Format("%f", keypoints2.at(in2).pt.x);
+        //      str4.Format("%f", keypoints2.at(in2).pt.y);*/
 
 
         //    offsetx = keypoints1.at(in1).pt.x - keypoints2.at(in2).pt.x;
@@ -1231,7 +1241,7 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
     else
     {
         printf("unsupported pixel format\n");
-        MessageBox(L"视频格式不对，需要调整到RGB8.");
+        MessageBox("视频格式不对，需要调整到RGB8.");
         return false;
     }
 
@@ -1251,9 +1261,9 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
         rpw = SetRoi::RoiPoint_end.x - SetRoi::RoiPoint_start.x;
         rph = SetRoi::RoiPoint_end.y - SetRoi::RoiPoint_start.y;
 
-		imRealTime = srcImage(Rect(rpx, rpy, rpw , rph));
-		imBmp =    bmpImgGray(Rect(rpx, rpy, rpw , rph));
-        str2.Format(L"取图ROI:(x%d*y%d,w%d,h%d)", rpx, rpy , rpw,rph);  //两个值是偏移了多少
+		imRealTime = srcImage(cv::Rect(rpx, rpy, rpw , rph));
+		imBmp =    bmpImgGray(cv::Rect(rpx, rpy, rpw , rph));
+        str2.Format("取图ROI:(x%d*y%d,w%d,h%d)", rpx, rpy , rpw,rph);  //两个值是偏移了多少
 		alignImages(imRealTime, imBmp, imReg, h);
 	}
   
@@ -1264,23 +1274,23 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
         py = startPoint.y;
         ph = endPoint.y - startPoint.y;
         pw = endPoint.x - startPoint.x;
-        str.Format(L"偏移X:%d*偏移Y:%d", offsetx, offsety);  //两个值是偏移了多少
+        str.Format("偏移X:%d*偏移Y:%d", offsetx, offsety);  //两个值是偏移了多少
         GetDlgItem(IDC_STATIC_message)->SetWindowText(str);
     if (m_adjust)
     {
-        str = L"去抖开:" + str;
+        str = "去抖开:" + str;
         //如果偏移太大，可能就是定位不准确或者 产生了错误
-        GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText(L"错误信息：无");
+        GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText("错误信息：无");
         if (startPoint.x + offsetx < 0 || offsetx > ADJUST)
         {
             offsetx = 0;
             
-            GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText(L"错误信息：横向跑偏太大！");
+            GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText("错误信息：横向跑偏太大！");
         }
         if (startPoint.y + offsety < 0 || offsety > ADJUST)
         {
             offsety = 0;
-            GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText(L"错误信息：竖向跑偏太大！");
+            GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText("错误信息：竖向跑偏太大！");
         }
        
         px +=  offsetx;
@@ -1288,15 +1298,15 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
         ph -= offsety;
         pw -= offsetx;
     }
-	str1.Format(L" 纠偏后ROI:(%d,%d)*(%d,%d)", px, py, pw, ph);
+	str1.Format(" 纠偏后ROI:(%d,%d)*(%d,%d)", px, py, pw, ph);
 	GetDlgItem(IDC_STATIC_message)->SetWindowText(str + str1 + str2);
     //注意下面的函数后面两个参数值的是宽度和高度，不是坐标值
-    srcImage = srcImage(Rect( px, py , pw , ph ));
+    srcImage = srcImage(cv::Rect( px, py , pw , ph ));
     try {
         if (showdiff)
           {
             cv::Mat bmpImgGrayRoi;
-            bmpImgGrayRoi = bmpImgGray(Rect(startPoint.x, startPoint.y, pw, ph));
+            bmpImgGrayRoi = bmpImgGray(cv::Rect(startPoint.x, startPoint.y, pw, ph));
 
                 cvtColor(srcImage , srcImageGray, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
                 cv::absdiff(srcImageGray, bmpImgGrayRoi,diffImgGray);    //图像做差
@@ -1314,12 +1324,12 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
                 // 5.膨胀  
                // dilate(imresult, imresult, kernel_dilate);
 
-                vector<vector<Point>> contours;
+                vector<vector<cv::Point>> contours;
                 findContours(diffImgGray, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
                 // 在result上绘制轮廓
                 //drawContours(srcImage, contours, -1, Scalar(0, 200, 255), 2);  //原图上
                 // 7.查找正外接矩形  
-                vector<Rect> boundRect(contours.size());
+                vector<cv::Rect> boundRect(contours.size());
                 for (int i = 0; i < contours.size(); i++)
                 {
                     boundRect[i] = boundingRect(contours[i]);
@@ -1340,7 +1350,7 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
                 //update_mhi(pBkImg, motion, 30);
 
                 rotate(diffImgGray, diffImgGray, m_rotate);
-                WriteLog(L"图像显示");
+                WriteLog("图像显示");
                // DrawPicToHDC(&(IplImage(imresult)), IDC_DISPLAY_STATIC);  // 显示右侧处理图
                 ShowImage(diffImgGray, IDC_DISPLAY_STATIC);
             //}
@@ -1368,7 +1378,7 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
 
           //  CBasicDemoDlg lg = new CBasicDemoDlg();
             CString cstr(ex.msg.c_str());
-           WriteLog(L"ERROR:  " + __LINE__ + cstr);
+           WriteLog("ERROR:  " + __LINE__ + cstr);
          //  return false;
     }
 
@@ -1547,26 +1557,26 @@ int CBasicDemoDlg::GrabThreadProcess()
             }
             m_nGrabBufSize = nDataSize;
         }
-        WriteLog(L"准备开始进入wile循环");
+        WriteLog("准备开始进入wile循环");
         MV_FRAME_OUT_INFO_EX stImageInfo = { 0 };
         MV_DISPLAY_FRAME_INFO stDisplayInfo = { 0 };
         bool bConvertRet = false;
         while (m_bThreadState)
         {
-          //  WriteLog(L"1");
+          //  WriteLog("1");
          //   Sleep(m_edt_DelayValue);
             
             EnterCriticalSection(&m_hSaveImageMux);
-           // WriteLog(L"2");
+           // WriteLog("2");
             nRet = m_pcMyCamera->GetOneFrameTimeout(m_pGrabBuf, m_nGrabBufSize, &stImageInfo, 1000);
-           // WriteLog(L"3");
+           // WriteLog("3");
             if (nRet == MV_OK)
             {
-               // WriteLog(L"4");
+               // WriteLog("4");
                 memcpy(&m_stImageInfo, &stImageInfo, sizeof(MV_FRAME_OUT_INFO_EX));
             }
 			
-          //  WriteLog(L"5");
+          //  WriteLog("5");
             LeaveCriticalSection(&m_hSaveImageMux);
 
             if (nRet == MV_OK)
@@ -1576,7 +1586,7 @@ int CBasicDemoDlg::GrabThreadProcess()
                     continue;
                 }
                 //转换为MAT 格式并显示
-              //  WriteLog(L"准备进入convert2Mat");
+              //  WriteLog("准备进入convert2Mat");
                 bConvertRet = ImageMain(&stImageInfo, m_pGrabBuf);
                 if (!bConvertRet)
                 {
@@ -1597,7 +1607,7 @@ int CBasicDemoDlg::GrabThreadProcess()
    // {
    ////     CBasicDemoDlg lg = new CBasicDemoDlg();
    //     CString cstr(ex.msg.c_str());
-   //     WriteLog(L"ERROR:  " + __LINE__ +  cstr);
+   //     WriteLog("ERROR:  " + __LINE__ +  cstr);
    // }
     return MV_OK;
 }
@@ -1727,7 +1737,7 @@ void CBasicDemoDlg::OnBnClickedOpenButton()
     nRet = m_pcMyCamera->SetEnumValue("PixelFormat", 0x02180014);
     if (MV_OK != nRet)
     {
-        MessageBox(L"转换成RGB错误");
+        MessageBox("转换成RGB错误");
         return;
     }
 
@@ -1813,7 +1823,7 @@ void CBasicDemoDlg::OnBnClickedStartGrabbingButton()
     memset(&m_stImageInfo, 0, sizeof(MV_FRAME_OUT_INFO_EX));
     m_bThreadState = TRUE;
     unsigned int nThreadID = 0;
-    WriteLog(L"start thread");
+    WriteLog("start thread");
     m_hGrabThread = (void*)_beginthreadex( NULL , 0 , GrabThread , this, 0 , &nThreadID );
     if (NULL == m_hGrabThread)
     {
@@ -2006,10 +2016,11 @@ void CBasicDemoDlg::OnClose()
 {
     OnBnClickedStopGrabbingButton();
   //  CloseDevice();
+
     Sleep(1000);
     PostQuitMessage(0);
     CloseDevice();
-
+  //  UninitMySkin();
     DeleteCriticalSection(&m_hSaveImageMux);
     exit(0);
     CDialog::OnClose();
@@ -2036,7 +2047,7 @@ BOOL CBasicDemoDlg::PreTranslateMessage(MSG* pMsg)
 
 			            if (result < 0)
 				        result = 0;
-                        m_editDelay.Format(L"%d", result);
+                        m_editDelay.Format("%d", result);
 						 nRet = m_pcMyCamera->SetFloatValue("TriggerDelay", float(result));
                         UpdateData(false);
 						if (MV_OK != nRet)
@@ -2053,7 +2064,7 @@ BOOL CBasicDemoDlg::PreTranslateMessage(MSG* pMsg)
 
 							if (result > 9000000)
 								result = 9000000;
-                            m_editDelay.Format(L"%d", result);
+                            m_editDelay.Format("%d", result);
 							 nRet = m_pcMyCamera->SetFloatValue("TriggerDelay", float(result));
                             UpdateData(false);
 							if (MV_OK != nRet)
@@ -2207,7 +2218,7 @@ void CBasicDemoDlg::WriteLog( CString msg)
         if (!m_WriteLog)
             return;
         CTime tt = CTime::GetCurrentTime();
-        filename =L"./log/" + tt.Format("%Y-%m-%d") + L".log";
+        filename ="./log/" + tt.Format("%Y-%m-%d") + ".log";
         setlocale(LC_CTYPE, ("chs"));
         //设置文件的打开参数
 
@@ -2270,7 +2281,7 @@ void CBasicDemoDlg::OnPictureSave(UINT ID)
 	HBITMAP  hBitmap = (HBITMAP)memDC.SelectObject(pOld->m_hObject);
 
 	imDest.Attach(hBitmap);// 载入位图资源      
-    HRESULT hResult = imDest.Save(L"1.png"); //保存图片
+    HRESULT hResult = imDest.Save("1.png"); //保存图片
     ReleaseDC(pdc);
     imag.ReleaseDC();
 }
@@ -2508,7 +2519,7 @@ void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
         lpMMI->ptMaxPosition.y = rectFullScreen.top;
         lpMMI->ptMaxTrackSize.x = rectFullScreen.Width();
         lpMMI->ptMaxTrackSize.y = rectFullScreen.Height();
-       // MessageBox(L"OnGetMinMaxInfo");
+       // MessageBox("OnGetMinMaxInfo");
     }
 
     CDialog::OnGetMinMaxInfo(lpMMI);
@@ -2543,7 +2554,7 @@ VOID CBasicDemoDlg::OnMyEvent(UINT message, WPARAM wParam, LPARAM lParam)
             //这里使用 CheckKeyByFindort_2检查加密锁是否被拨出，也可以使用其它检查锁函数来检查加密锁是否被拨出
             if (ytsoftkey.CheckKeyByFindort_2() != 0)
             {
-                MessageBox(L"加密锁被拨出。程序退出！",TEXT("错误"), MB_OK | MB_ICONERROR);
+                MessageBox("加密锁被拨出。程序退出！",TEXT("错误"), MB_OK | MB_ICONERROR);
                 OnClose();
             }
               
@@ -2573,7 +2584,7 @@ BOOL CBasicDemoDlg::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 	GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
 	ScreenToClient(&mousePoint);
     if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
-        return 0;  // MessageBox(L"out");
+        return 0;  // MessageBox("out");
 	//int dx = mousePoint.x - (rect_view.TopLeft()).x; //计算鼠标坐标点到矩形起始点X方向的向量
 	//int dy = mousePoint.y - (rect_view.TopLeft()).y; //计算鼠标坐标点到矩形起始点Y方向的向量
 
@@ -2706,7 +2717,7 @@ void CBasicDemoDlg::OnDeltaposSpin1(NMHDR* pNMHDR, LRESULT* pResult)
 
         if (result < 0)
             result = 0;
-        ss.Format(L"%d", result);
+        ss.Format("%d", result);
 	}
 	else if (pNMUpDown->iDelta == 1) // 如果此值为1, 说明点击了Spin的往上的箭头  
 	{
@@ -2714,7 +2725,7 @@ void CBasicDemoDlg::OnDeltaposSpin1(NMHDR* pNMHDR, LRESULT* pResult)
 
 		if (result > 9000000)
 			result = 9000000;
-		ss.Format(L"%d", result);
+		ss.Format("%d", result);
 		
 	}
     m_editDelay = ss;
@@ -2768,7 +2779,7 @@ void CBasicDemoDlg::OnMouseMove(UINT nFlags, CPoint point)
 	//GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
 	//ScreenToClient(&mousePoint);
 	//if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
-	//	return;  // MessageBox(L"out");
+	//	return;  // MessageBox("out");
 	//if (m_bLBDown)
 	//{
 	//	startPoint.x += point.x - m_StartPoint.x;
@@ -2795,7 +2806,7 @@ void CBasicDemoDlg::OnLButtonDown(UINT nFlags, CPoint point)
 	//GetCursorPos(&mousePoint);              //获取当前鼠标在窗框中的坐标值
 	//ScreenToClient(&mousePoint);
 	//if (mousePoint.x < rect_view.left || mousePoint.x > rect_view.right || mousePoint.y > rect_view.bottom || mousePoint.y < rect_view.top)
-	//	return;  // MessageBox(L"out");
+	//	return;  // MessageBox("out");
 	//m_StartPoint = point;
 
 	////m_EndPoint = point;

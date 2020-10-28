@@ -366,7 +366,7 @@ int CForceIpDemoDlg::DisplayDeviceIp()
     }
     catch (Exception ex)
     {
-        MessageBox(L"相机错误！可能是没有搜索到相机");
+        MessageBox("相机错误！可能是没有搜索到相机");
    }
     return 0;
 }

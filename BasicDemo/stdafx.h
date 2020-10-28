@@ -39,8 +39,8 @@
 
 
 
-
-
+//#include "SkinH.h"
+//#pragma comment (lib,"SkinHu.lib")
 
 
 

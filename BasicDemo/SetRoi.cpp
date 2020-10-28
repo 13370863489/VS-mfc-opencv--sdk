@@ -16,10 +16,6 @@ IMPLEMENT_DYNAMIC(SetRoi, CDialogEx)
 SetRoi::SetRoi(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_DIALOG_setroi, pParent)
 {
-	//SetRoi::RoiPoint_start.x = 0;
-	//SetRoi::RoiPoint_start.y = 0;
-	//SetRoi::RoiPoint_end.x = 0;
-	//SetRoi::RoiPoint_end.y = 0;
 
 }
 
@@ -48,29 +44,7 @@ END_MESSAGE_MAP()
 
 void SetRoi::OnLButtonDown(UINT nFlags, CPoint point)
 {
-	// TODO: 在此添加消息处理程序代码和/或调用默认值
-	//src_flag = true;
-	//GetCursorPos(&sel_pos);
-	//GetDlgItem(IDC_STATIC_image)->GetWindowRect(&pic_rect);
-	//if (pic_rect.PtInRect(sel_pos))    //如果鼠标在源图像显示范围内
-	//{
-	//	//::SetCursor(hCur);
-	//	ClipCursor(&pic_rect);
 
-	//	rect_width = pic_rect.right - pic_rect.left;  //窗口 width
-	//	rect_height = pic_rect.bottom - pic_rect.top;  // 窗口 height
-	//	img_width = src.cols;   // 图片宽
-	//	img_height = src.rows;  //图片高
-	//	xscale = src.cols / rect_width;  
-	//	yscale = src.rows / rect_height;
-
-	//	startPoint.x = (sel_pos.x - pic_rect.left) * xscale;
-	//	startPoint.y = (sel_pos.y - pic_rect.top) * yscale;
-
-	//	m_ptStart = point;
-	//	m_ptPrev = point;
-	//}
-	//move_flag = true;
 
 	GetCursorPos(&sel_pos);
 	GetDlgItem(IDC_STATIC_image)->GetWindowRect(&pic_rect);
@@ -80,12 +54,7 @@ void SetRoi::OnLButtonDown(UINT nFlags, CPoint point)
 	{
 		img_rect_width = pic_rect.right - pic_rect.left;  //图像 width
 		img_rect_height = pic_rect.bottom - pic_rect.top;  // 图像 height
-		//&RECT(
-		//      long(pic_dlg_rect.left + (rect_width - img_rect_width) / 2), 
-		//      long(pic_dlg_rect.top  + (rect_height - img_rect_height) / 2), 
-		//          (pic_dlg_rect.right - (rect_width - img_rect_width) / 2), 
-		//          (pic_dlg_rect.bottom + (rect_height - img_rect_height) / 2)
-		//)
+
 		ClipCursor(&pic_rect);
 		m_bClickEmpty = true;
 
@@ -100,30 +69,7 @@ void SetRoi::OnLButtonDown(UINT nFlags, CPoint point)
  CPoint SetRoi::RoiPoint_start, SetRoi::RoiPoint_end;
 void SetRoi::OnLButtonUp(UINT nFlags, CPoint point)
 {
-	// TODO: 在此添加消息处理程序代码和/或调用默认值
-	//if (up_flag)
-	//{
-	//	GetCursorPos(&sel_pos);
-	//	GetDlgItem(IDC_STATIC_image)->GetWindowRect(&pic_rect);
-	//	if (pic_rect.PtInRect(sel_pos)) {			//////////////////判断鼠标在范围内
-	//		ClipCursor(NULL);
-	//		/*CClientDC dc(this);
-	//		dc.SetROP2(R2_NOT);
-	//		dc.Rectangle(m_ptStart.x, m_ptStart.y, m_ptPrev.x, m_ptPrev.y);
-	//		dc.SetROP2(R2_COPYPEN);
-	//		dc.Rectangle(m_ptStart.x, m_ptStart.y, point.x, point.y);*/
-	//		rect_width = pic_rect.right - pic_rect.left;
-	//		rect_height = pic_rect.bottom - pic_rect.top;
-
-	//		endPoint.x = (sel_pos.x - pic_rect.left) * xscale;
-	//		endPoint.y = (sel_pos.y - pic_rect.top) * yscale;
-	//		CClientDC dc(this);
-	//		/*dc.SetROP2(R2_NOT);
-	//		dc.Rectangle(m_ptStart.x, m_ptStart.y, m_ptPrev.x, m_ptPrev.y);*/
-	//		dc.SetROP2(R2_COPYPEN);
-	//		dc.Rectangle(m_ptStart.x, m_ptStart.y, point.x, point.y);
-	//	}
-	//}
+	
 	
 	if (m_bClickEmpty) {
 		GetDlgItem(IDC_STATIC_image)->GetWindowRect(&nono_rect);
@@ -140,19 +86,6 @@ void SetRoi::OnLButtonUp(UINT nFlags, CPoint point)
 
 		xscale = img_width / img_rect_width;  // 图片宽比例
 		yscale = img_height / img_rect_height; //图片高比例
-		/*double w, h;
-		w = img_width / pic_rect.right;
-		h = img_height / pic_rect.bottom;*/
-
-	//	double toleft, totop;
-	//	toleft = (rect_width - img_rect_width) / 2;
-	//	totop = (rect_height - img_rect_height) / 2;
-		//GetDlgItem(IDC_STATIC_image)->GetWindowRect(&pic_rect);
-		
-	/*	SetRoi::RoiPoint_start.x = long((OldEmptyBegin.x - nono_rect.left - toleft )* xscale);
-		SetRoi::RoiPoint_start.y = long((OldEmptyBegin.y - nono_rect.top - totop)  * yscale);
-		SetRoi::RoiPoint_end.x = long((NowEmptyEnd.x - nono_rect.left - toleft) * xscale);
-		SetRoi::RoiPoint_end.y = long((NowEmptyEnd.y - nono_rect.top - totop) * yscale);*/
 
 		SetRoi::RoiPoint_start.x = long((OldEmptyBegin.x - nono_rect.left ) * xscale);
 		SetRoi::RoiPoint_start.y = long((OldEmptyBegin.y - nono_rect.top) * yscale);
@@ -160,19 +93,6 @@ void SetRoi::OnLButtonUp(UINT nFlags, CPoint point)
 		SetRoi::RoiPoint_end.y = long((NowEmptyEnd.y - nono_rect.top ) * yscale);
 
 
-		/*CClientDC dc(this);
-
-		CBrush* pBrush = CBrush::FromHandle((HBRUSH)GetStockObject(NULL_BRUSH));
-
-		CBrush* POldBrush = dc.SelectObject(pBrush);
-
-		int nOldMode = dc.SetROP2(R2_NOTXORPEN);*/
-
-		//dc.Rectangle(&CRect(OldEmptyBegin, NowEmptyEnd));
-
-	//	dc.SelectObject(POldBrush);
-
-	//	dc.SetROP2(nOldMode);
 
 	}
 	CDialogEx::OnLButtonUp(nFlags, point);
@@ -181,32 +101,7 @@ void SetRoi::OnLButtonUp(UINT nFlags, CPoint point)
 
 void SetRoi::OnMouseMove(UINT nFlags, CPoint point)
 {
-	// TODO: 在此添加消息处理程序代码和/或调用默认值
-	//if (move_flag) {
-	//	GetCursorPos(&sel_pos);
-	//	GetDlgItem(IDC_STATIC_image)->GetWindowRect(&pic_rect);
-	//	if (pic_rect.PtInRect(sel_pos))
-	//	{
-	//	/*	CClientDC dc(this);
-	//		dc.SetROP2(R2_NOT);*/
 
-	//		rect_width = pic_rect.right - pic_rect.left;
-	//		rect_height = pic_rect.bottom - pic_rect.top;
-
-	//		endPoint.x = (sel_pos.x - pic_rect.left) * xscale;
-	//		endPoint.y = (sel_pos.y - pic_rect.top) * yscale;
-
-	//		//dc.Rectangle(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
-	//		//dc.MoveTo(m_ptStart);
-	//		//dc.Rectangle(m_ptStart.x, m_ptStart.y, point.x, point.y);
-	//		//m_ptPrev = point;
-
-
-	//		
-	//	}
-	//	move_flag = false;
-	//}
-	//up_flag = true;
 	if (m_bClickEmpty && pic_rect.PtInRect(sel_pos)) {
 		CClientDC dc(this);
 
@@ -236,7 +131,7 @@ BOOL SetRoi::OnInitDialog()
 	CDialogEx::OnInitDialog();
 	m_bClickEmpty = false;
 	// TODO:  在此添加额外的初始化
-	
+	//InitMySkin();
 	return TRUE;  // return TRUE unless you set the focus to a control
 				  // 异常: OCX 属性页应返回 FALSE
 }
@@ -249,25 +144,13 @@ void SetRoi::OnPaint()
 					   // 不为绘图消息调用 CDialogEx::OnPaint()
 	cv::Mat srcimg = cv::imread("1.bmp");
 	ShowImage(srcimg, IDC_STATIC_image);
-	////绘制拖动矩形   
-	//if (move_flag && src_flag)
-	//{
-	//	CRect rect(startPoint, endPoint);
 
-	//	rect.NormalizeRect();//规范化矩形   
-
-	//	CBrush bruPen(RGB(255, 0, 0));//矩形边框颜色  
-
-	//	dc.FrameRect(&rect, &bruPen);
-	//}
 }
 
 
 void SetRoi::OnBnClickedButtonloadimg()
 {
-	// TODO: 在此添加控件通知处理程序代码
-	/*cv::Mat srcimg = cv::imread("1.bmp");
-    ShowImage(srcimg, IDC_STATIC_image);*/
+
 }
 void SetRoi::MatToCImage(cv::Mat mat, ATL::CImage& cimage)
 {

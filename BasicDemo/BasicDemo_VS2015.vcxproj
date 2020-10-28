@@ -30,7 +30,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <PlatformToolset>v142</PlatformToolset>
     <UseOfMfc>Static</UseOfMfc>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -43,7 +43,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <PlatformToolset>v142</PlatformToolset>
     <UseOfMfc>Static</UseOfMfc>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CLRSupport>false</CLRSupport>
   </PropertyGroup>
@@ -237,6 +237,7 @@
     <ClCompile Include="BasicDemoDlg.cpp" />
     <ClCompile Include="CvvImage.cpp" />
     <ClCompile Include="MvCamera.cpp" />
+    <ClCompile Include="MySkin.cpp" />
     <ClCompile Include="SetRoi.cpp" />
     <ClCompile Include="SoftKey.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -256,10 +257,12 @@
     <ClInclude Include="CvvImage.h" />
     <ClInclude Include="KeyDef.h" />
     <ClInclude Include="MvCamera.h" />
+    <ClInclude Include="MySkin.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="resource1.h" />
     <ClInclude Include="resource2.h" />
     <ClInclude Include="SetRoi.h" />
+    <ClInclude Include="SkinH.h" />
     <ClInclude Include="SoftKey.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />

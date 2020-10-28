@@ -95,7 +95,7 @@ BOOL  SoftKey::LoadLib()
     }
     else
     {
-        MessageBox(NULL, L"错误", L"加载SetupApi动态库时错误。", MB_OK|MB_ICONERROR);
+        MessageBox(NULL, "错误", "加载SetupApi动态库时错误。", MB_OK|MB_ICONERROR);
         return FALSE;
     }
 
@@ -120,7 +120,7 @@ BOOL  SoftKey::LoadLib()
     }
     else
     {
-        MessageBox(NULL, L"错误?", L"加载hid动态库时错误。", MB_OK|MB_ICONERROR);
+        MessageBox(NULL, "错误?", "加载hid动态库时错误。", MB_OK|MB_ICONERROR);
         return FALSE;
     }
     return TRUE;
@@ -2310,7 +2310,7 @@ int SoftKey::CheckKeyByReadEprom()
 		ret=FindPort(n,DevicePath);
 		if(ret!=0)return ret;
 		ret=ReadStringEx(0,outstring,DevicePath);
-		if((ret==0) && (memcmp(outstring,"css",lstrlen(L"css"))==0))return 0;
+		if((ret==0) && (memcmp(outstring,"css",lstrlen("css"))==0))return 0;
 	}
 	return -92;
 }
