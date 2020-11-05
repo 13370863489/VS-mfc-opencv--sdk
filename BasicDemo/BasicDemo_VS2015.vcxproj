@@ -235,6 +235,7 @@
   <ItemGroup>
     <ClCompile Include="BasicDemo.cpp" />
     <ClCompile Include="BasicDemoDlg.cpp" />
+    <ClCompile Include="CMyButton.cpp" />
     <ClCompile Include="CvvImage.cpp" />
     <ClCompile Include="MvCamera.cpp" />
     <ClCompile Include="MySkin.cpp" />
@@ -254,6 +255,7 @@
     <ClInclude Include="..\..\include\PixelType.h" />
     <ClInclude Include="BasicDemo.h" />
     <ClInclude Include="BasicDemoDlg.h" />
+    <ClInclude Include="CMyButton.h" />
     <ClInclude Include="CvvImage.h" />
     <ClInclude Include="KeyDef.h" />
     <ClInclude Include="MvCamera.h" />

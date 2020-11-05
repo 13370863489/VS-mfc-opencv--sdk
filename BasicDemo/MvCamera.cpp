@@ -51,6 +51,7 @@ int CMvCamera::Open(MV_CC_DEVICE_INFO* pstDeviceInfo)
         return nRet;
     }
 
+
     nRet = MV_CC_OpenDevice(m_hDevHandle);
     if (MV_OK != nRet)
     {

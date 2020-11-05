@@ -60,6 +60,15 @@
 #define IDCANCEL                        1060
 #define IDC_STATIC_image                1061
 #define IDC_STATIC_errorMsg             1062
+#define IDC_EDIT_noise                  1063
+#define IDC_BUTTON_noise                1064
+#define IDC_CHECK_fushi                 1065
+#define IDC_CHECK_pengzhang             1066
+#define IDC_STATIC_yuzhi                1067
+#define IDC_STATIC_liangdu              1068
+#define IDC_STATIC_zaodian              1069
+#define IDC_CHECK1                      1070
+#define IDC_CHECK_ruihua                1070
 #define ID_add                          32771
 #define ID_subtract                     32772
 
@@ -69,7 +78,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        140
 #define _APS_NEXT_COMMAND_VALUE         32774
-#define _APS_NEXT_CONTROL_VALUE         1063
+#define _APS_NEXT_CONTROL_VALUE         1071
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

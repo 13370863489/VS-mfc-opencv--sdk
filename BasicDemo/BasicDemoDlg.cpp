@@ -79,11 +79,12 @@ CBasicDemoDlg::CBasicDemoDlg(CWnd* pParent /*=NULL*/)
     , m_nSaveImageBufSize(0)
     , m_pGrabBuf(NULL)
     , m_nGrabBufSize(0)
-    , use_time(_T(""))
     , m_Threshold(30)
-    , m_maxvalue(200)
+    , m_maxvalue(255)
     , m_editDelay(_T("0"))
     , m_isSetRoi(false)
+    , m_Noise(6)
+    , m_fushi_state(FALSE)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
     memset(&m_stImageInfo, 0, sizeof(MV_FRAME_OUT_INFO_EX));
@@ -107,6 +108,11 @@ void CBasicDemoDlg::DoDataExchange(CDataExchange* pDX)
     DDX_Text(pDX, IDC_EDIT1, m_editDelay);
     DDX_Control(pDX, IDC_SPIN1, m_SpinDelay);
     DDX_Control(pDX, IDC_DISPLAY_STATIC, m_diff_display);
+    DDX_Text(pDX, IDC_EDIT_noise, m_Noise);
+    DDV_MinMaxInt(pDX, m_Noise, 0, 30);
+    DDX_Check(pDX, IDC_CHECK_fushi, m_fushi_state);
+    DDX_Check(pDX, IDC_CHECK_pengzhang, m_pengzhang_state);
+    DDX_Check(pDX, IDC_CHECK_ruihua, m_ruihua_status);
 }
 
 BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
@@ -164,6 +170,10 @@ BEGIN_MESSAGE_MAP(CBasicDemoDlg, CDialog)
     ON_BN_CLICKED(IDC_BUTTON_move_down, &CBasicDemoDlg::OnBnClickedButtonmovedown)
     ON_BN_CLICKED(IDC_BUTTON_adjust, &CBasicDemoDlg::OnBnClickedButtonadjust)
     ON_BN_CLICKED(IDC_BUTTON_roiset, &CBasicDemoDlg::OnBnClickedButtonroiset)
+    ON_BN_CLICKED(IDC_BUTTON_noise, &CBasicDemoDlg::OnBnClickedButtonnoise)
+    ON_BN_CLICKED(IDC_CHECK_fushi, &CBasicDemoDlg::OnClickedCheckFushi)
+    ON_BN_CLICKED(IDC_CHECK_pengzhang, &CBasicDemoDlg::OnClickedCheckPengzhang)
+    ON_BN_CLICKED(IDC_CHECK_ruihua, &CBasicDemoDlg::OnBnClickedCheckruihua)
 END_MESSAGE_MAP()
 
 // ch:取流线程 | en:Grabbing thread
@@ -215,20 +225,24 @@ BOOL CBasicDemoDlg::OnInitDialog()
 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
 		}
 	}
-    //CWnd* pControl = GetDlgItem(IDC_STATIC_video);
-    //pControl->GetWindowRect(&rect_view);    //获得子控件的屏幕坐标；     
-    //this->ScreenToClient(&rect_view);   //子控件屏幕坐标映射到控件客户区；且这里一定要用this
-    //InvalidateRect(&rect_view, TRUE);  //刷新控件区域
-   
-    //m_picHeight = rect_view.bottom - rect_view.top;
-   // m_picWeight = rect_view.right - rect_view.left;
-
+	//设置延迟拍照
+	int itemp = _ttoi(m_editDelay);
+	m_SpinDelay.SetBuddy(GetDlgItem(itemp));
+	m_SpinDelay.SetRange(0, 1000000);
+	//m_edt_DelayValue = 0;
+	//设置阈值
+	m_Threshold = 30;
+	m_maxvalue = 200;
+	bFullScreen = false;
+	//设置字体
+	static CFont Bfont;
+	Bfont.CreatePointFont(300, _T("宋体"));
+	GetDlgItem(IDC_BUTTON_showerror)->SetFont(&Bfont);
     m_bLBDown = false;
-
-
-  
-    //rect_rect = rect_view;
-
+    m_ruihua_status = FALSE;
+    m_adjust = false;
+    offsetx = 0;
+    offsety = 0;
 	// Set the icon for this dialog.  The framework does this automatically
 	//  when the application's main window is not a dialog
 	SetIcon(m_hIcon, TRUE);			// Set big icon
@@ -241,19 +255,7 @@ BOOL CBasicDemoDlg::OnInitDialog()
     GetClientRect(&rect);//取客户区大小
     Old.x = rect.right - rect.left;
     Old.y = rect.bottom - rect.top;
-    //设置延迟拍照
-	int itemp = _ttoi(m_editDelay);
-	m_SpinDelay.SetBuddy(GetDlgItem(itemp));
-    m_SpinDelay.SetRange(0, 1000000);
-    //m_edt_DelayValue = 0;
-    //设置阈值
-    m_Threshold = 30;
-    m_maxvalue = 200;
-    bFullScreen = false;
-    //设置字体
-    static CFont Bfont;
-    Bfont.CreatePointFont(300, _T("宋体"));
-    GetDlgItem(IDC_BUTTON_showerror)->SetFont(&Bfont);
+
     //查询加密狗
  ///////////////////////////////////////////////////////////////////////////////////	
      //这个用于判断系统中是否存在着加密锁。不需要是指定的加密锁,
@@ -1036,7 +1038,6 @@ int CBasicDemoDlg::RGB2BGR(unsigned char* pRgbData, unsigned int nWidth, unsigne
             pRgbData[j * (nWidth * 3) + i * 3 + 2] = red;
         }
     }
-  //  WriteLog("" + __LINE__);
     }
     catch (Exception ex)
     {
@@ -1113,7 +1114,7 @@ void CBasicDemoDlg::alignImages(cv::Mat& im1, cv::Mat& im2, cv::Mat& im1Reg, cv:
         Mat imMatches;
         //画出特征点匹配图
         drawMatches(im1, keypoints1, im2, keypoints2, matches, imMatches);
-        imwrite("matches.jpg", imMatches);
+       imwrite("matches.jpg", imMatches);
 
         // Extract location of good matches
         std::vector<Point2f> points1, points2;
@@ -1221,36 +1222,35 @@ void CBasicDemoDlg::alignImages(cv::Mat& im1, cv::Mat& im2, cv::Mat& im1Reg, cv:
 
 */
 //CPoint SetRoi::RoiPoint_start, SetRoi::RoiPoint_end;
-bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char* pData)
+bool CBasicDemoDlg::ImageMain(MV_CC_PIXEL_CONVERT_PARAM* pstImageInfo)
 {
    
-    clock_t start, finish;
+  
     double  duration;
     double a;
-   
-    start = clock();
-    if (pstImageInfo->enPixelType == PixelType_Gvsp_Mono8)
+    CString qudoustr, pianyistr, shishistr, rrstr;
+    
+    if (pstImageInfo->enSrcPixelType == PixelType_Gvsp_Mono8)
     {
-        srcImage = cv::Mat(pstImageInfo->nHeight, pstImageInfo->nWidth, CV_8UC1, pData);
+        srcImage = cv::Mat(pstImageInfo->nHeight, pstImageInfo->nWidth, CV_8UC1, pstImageInfo->pDstBuffer );
     }
-    else if (pstImageInfo->enPixelType == PixelType_Gvsp_RGB8_Packed)
+    else if (pstImageInfo->enDstPixelType == PixelType_Gvsp_RGB8_Packed)
     {
-        RGB2BGR(pData, pstImageInfo->nWidth, pstImageInfo->nHeight);
-        srcImage = cv::Mat(pstImageInfo->nHeight, pstImageInfo->nWidth, CV_8UC3, pData);
+        RGB2BGR(pstImageInfo->pDstBuffer, pstImageInfo->nWidth, pstImageInfo->nHeight);
+        srcImage = cv::Mat(pstImageInfo->nHeight, pstImageInfo->nWidth, CV_8UC3, pstImageInfo->pDstBuffer);
     }
-    else
-    {
-        printf("unsupported pixel format\n");
-        MessageBox("视频格式不对，需要调整到RGB8.");
-        return false;
-    }
+ else
+	 {
+		 //printf("unsupported pixel format\n");
+		 MessageBox("视频格式不对");
+		 return false;
+	 }
 
     if (NULL == srcImage.data)
     {
         return false;
     }
     orgPic = srcImage;
-    CString str, str1 ,str2;
     if(showdiff && m_adjust)
 	{
         //这一部分是定位
@@ -1260,55 +1260,60 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
         rpy = SetRoi::RoiPoint_start.y;
         rpw = SetRoi::RoiPoint_end.x - SetRoi::RoiPoint_start.x;
         rph = SetRoi::RoiPoint_end.y - SetRoi::RoiPoint_start.y;
-
 		imRealTime = srcImage(cv::Rect(rpx, rpy, rpw , rph));
-		imBmp =    bmpImgGray(cv::Rect(rpx, rpy, rpw , rph));
-        str2.Format("取图ROI:(x%d*y%d,w%d,h%d)", rpx, rpy , rpw,rph);  //两个值是偏移了多少
+        if (bmpImgGray.empty())
+            return false;
+		imBmp =    bmpImgGray(cv::Rect(rpx, rpy, rpw , rph));  //从样品取得定位区域
+      //  str2.Format("取图ROI:(x%d*y%d,w%d,h%d)", rpx, rpy , rpw,rph);  //两个值是偏移了多少
 		alignImages(imRealTime, imBmp, imReg, h);
 	}
   
-        orgPic = srcImage;
-        int px, py, ph, pw;  
-        
-        px = startPoint.x;
-        py = startPoint.y;
-        ph = endPoint.y - startPoint.y;
-        pw = endPoint.x - startPoint.x;
-        str.Format("偏移X:%d*偏移Y:%d", offsetx, offsety);  //两个值是偏移了多少
-        GetDlgItem(IDC_STATIC_message)->SetWindowText(str);
+      
+	int px, py, ph, pw;
+	px = startPoint.x;
+	py = startPoint.y;
+	ph = endPoint.y - startPoint.y;
+	pw = endPoint.x - startPoint.x;
+    pianyistr.Format("偏移X:%d*偏移Y:%d |", offsetx, offsety);  //两个值是偏移了多少
+      //  GetDlgItem(IDC_STATIC_message)->SetWindowText(str);
     if (m_adjust)
     {
-        str = "去抖开:" + str;
+        qudoustr = "去抖开 |";
         //如果偏移太大，可能就是定位不准确或者 产生了错误
         GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText("错误信息：无");
-        if (startPoint.x + offsetx < 0 || offsetx > ADJUST)
+        if (startPoint.x + offsetx < 0 || abs( offsetx) > ADJUST )
         {
             offsetx = 0;
             
             GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText("错误信息：横向跑偏太大！");
         }
-        if (startPoint.y + offsety < 0 || offsety > ADJUST)
+        if (startPoint.y + offsety < 0 || abs(offsety) > ADJUST)
         {
             offsety = 0;
             GetDlgItem(IDC_STATIC_errorMsg)->SetWindowText("错误信息：竖向跑偏太大！");
         }
-       
+
+	
         px +=  offsetx;
         py +=  offsety;
         ph -= offsety;
         pw -= offsetx;
+        shishistr.Format("去抖后:(%d,%d)*(%d,%d) |", px, py, pw, ph);
     }
-	str1.Format(" 纠偏后ROI:(%d,%d)*(%d,%d)", px, py, pw, ph);
-	GetDlgItem(IDC_STATIC_message)->SetWindowText(str + str1 + str2);
+    else
+		qudoustr = "去抖关 |";
+	
+	//GetDlgItem(IDC_STATIC_message)->SetWindowText(str + str1 + str2);
     //注意下面的函数后面两个参数值的是宽度和高度，不是坐标值
     srcImage = srcImage(cv::Rect( px, py , pw , ph ));
     try {
         if (showdiff)
           {
             cv::Mat bmpImgGrayRoi;
-            bmpImgGrayRoi = bmpImgGray(cv::Rect(startPoint.x, startPoint.y, pw, ph));
+                bmpImgGrayRoi = bmpImgGray(cv::Rect(startPoint.x, startPoint.y, pw, ph));
+               
+                    cvtColor(srcImage, srcImageGray, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
 
-                cvtColor(srcImage , srcImageGray, CV_BGR2GRAY);  //1 原图像 2  输出图像  灰度处理
                 cv::absdiff(srcImageGray, bmpImgGrayRoi,diffImgGray);    //图像做差
 
 				/*threshold是设定的阈值
@@ -1316,13 +1321,23 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
 					type规定的是当前二值化的方式*/
                 cv::threshold(diffImgGray, diffImgGray, m_Threshold,m_maxvalue, CV_THRESH_BINARY);  //进行阈值处理 二值化
                  
-                // 4.腐蚀  
-               // Mat kernel_erode = getStructuringElement(MORPH_RECT, Size(3, 3));
-                //Mat kernel_dilate = getStructuringElement(MORPH_RECT, Size(18, 18));
-               // erode(diffImgGray, diffImgGray, kernel_erode);
+                Mat kernel_dilate;
+                if (m_fushi_state)
+                {
+					// 4.腐蚀  
+			  // Mat kernel_erode = getStructuringElement(MORPH_RECT, Size(3, 3));
+				     kernel_dilate = getStructuringElement(MORPH_RECT, cv::Size(2,2));
+					erode(diffImgGray, diffImgGray, kernel_dilate);
+                }
                
-                // 5.膨胀  
-               // dilate(imresult, imresult, kernel_dilate);
+
+                if (m_pengzhang_state)
+                {
+					// 5.膨胀  
+                    kernel_dilate = getStructuringElement(MORPH_RECT, cv::Size(2, 2));
+					dilate(diffImgGray, diffImgGray, kernel_dilate);
+                }
+               
 
                 vector<vector<cv::Point>> contours;
                 findContours(diffImgGray, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
@@ -1330,9 +1345,16 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
                 //drawContours(srcImage, contours, -1, Scalar(0, 200, 255), 2);  //原图上
                 // 7.查找正外接矩形  
                 vector<cv::Rect> boundRect(contours.size());
+                int delcount = 0;
                 for (int i = 0; i < contours.size(); i++)
                 {
                     boundRect[i] = boundingRect(contours[i]);
+                    if (boundRect[i].width < m_Noise && boundRect[i].height < m_Noise)  //如果脏太小，可能就是干扰项了，过滤掉
+                    {
+                        delcount++;
+                        continue;
+                    }
+                        
                     // 在result上绘制正外接矩形
                     rectangle(srcImage, boundRect[i], Scalar(0, 255, 0), 2);  //在原图上画矩形
                 }
@@ -1340,12 +1362,12 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
                 if (contours.size() >= 0)
                 {
                     CString str;
-                    str.Format(_T("%d"), contours.size());
+                    str.Format(_T("%d"), contours.size() - delcount);
                     CStatic* pStatic = (CStatic*)GetDlgItem(IDC_BUTTON_showerror);
                     pStatic->SetWindowText(str);
                   //  MessageBeep(0x00000000L);
                 }
-                double timestamp = (double)clock() / CLOCKS_PER_SEC; // get current time in seconds  
+             //   double timestamp = (double)clock() / CLOCKS_PER_SEC; // get current time in seconds  
 
                 //update_mhi(pBkImg, motion, 30);
 
@@ -1360,19 +1382,22 @@ bool CBasicDemoDlg::ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char*
         {
             rotate(srcImage, srcImage, m_rotate);
             ShowImage(srcImage, IDC_STATIC_video);
-           // DrawPicToHDC(&(IplImage(srcImage)), IDC_STATIC_video);  //左侧窗口
+            //DrawPicToHDC(&(IplImage(srcImage)), IDC_STATIC_video);  //左侧窗口
         }
-        finish = clock();
-        duration = (double)(finish - start) / CLOCKS_PER_SEC;
-        CString str;
-        str.Format(_T("用时：%f秒"), duration);
+     
+       
 
 
-        CStatic * pStatic = (CStatic*)GetDlgItem(IDC_STATIC_time);
-        pStatic->SetWindowText(str);
-      
+       
+        GetDlgItem(IDC_STATIC_message)->SetWindowText("状态：" + diffstr + qudoustr + pianyistr + shishistr);
         srcImage.release();
-        
+		finish = clock();
+		duration = (double)(finish - start) / CLOCKS_PER_SEC;
+		CString str;
+		str.Format(_T("耗时：%f秒"), duration);
+		CStatic* pStatic = (CStatic*)GetDlgItem(IDC_STATIC_time);
+		pStatic->SetWindowText(str);
+
     }
     catch (Exception ex) {
 
@@ -1561,15 +1586,23 @@ int CBasicDemoDlg::GrabThreadProcess()
         MV_FRAME_OUT_INFO_EX stImageInfo = { 0 };
         MV_DISPLAY_FRAME_INFO stDisplayInfo = { 0 };
         bool bConvertRet = false;
+        unsigned char* pDataForRGB = NULL;
+		MV_CC_PIXEL_CONVERT_PARAM stConvertParam = { 0 };
+		memset(&stConvertParam, 0, sizeof(MV_CC_PIXEL_CONVERT_PARAM));  
+        pDataForRGB = (unsigned char*)malloc(m_picWeight * m_picHeight * 3);
+        unsigned int nDataSizeForRGB = m_picWeight * m_picHeight * 3;
+		if (NULL == pDataForRGB)
+		{
+			printf("malloc pDataForRGB fail !\n");
+			//break;
+		}
         while (m_bThreadState)
         {
           //  WriteLog("1");
          //   Sleep(m_edt_DelayValue);
             
             EnterCriticalSection(&m_hSaveImageMux);
-           // WriteLog("2");
             nRet = m_pcMyCamera->GetOneFrameTimeout(m_pGrabBuf, m_nGrabBufSize, &stImageInfo, 1000);
-           // WriteLog("3");
             if (nRet == MV_OK)
             {
                // WriteLog("4");
@@ -1578,20 +1611,38 @@ int CBasicDemoDlg::GrabThreadProcess()
 			
           //  WriteLog("5");
             LeaveCriticalSection(&m_hSaveImageMux);
+            start = clock();
+		
+		
+		
+
+			// ch:像素格式转换 | en:Convert pixel format 
+		
+
+			stConvertParam.nWidth = stImageInfo.nWidth;                 //ch:图像宽 | en:image width
+			stConvertParam.nHeight = stImageInfo.nHeight;               //ch:图像高 | en:image height
+			stConvertParam.pSrcData = m_pGrabBuf;                            //ch:输入数据缓存 | en:input data buffer
+			stConvertParam.nSrcDataLen = stImageInfo.nFrameLen;         //ch:输入数据大小 | en:input data size
+			stConvertParam.enSrcPixelType = stImageInfo.enPixelType;    //ch:输入像素格式 | en:input pixel format
+			stConvertParam.enDstPixelType = PixelType_Gvsp_RGB8_Packed; //ch:输出像素格式 | en:output pixel format
+			stConvertParam.pDstBuffer = pDataForRGB;                    //ch:输出数据缓存 | en:output data buffer
+			stConvertParam.nDstBufferSize = nDataSizeForRGB;            //ch:输出缓存大小 | en:output buffer size
+			//nRet = MV_CC_ConvertPixelType(handle, &stConvertParam);
+            nRet = m_pcMyCamera->ConvertPixelType(&stConvertParam);
 
             if (nRet == MV_OK)
             {
-                if (RemoveCustomPixelFormats(stImageInfo.enPixelType))
-                {
+                bConvertRet = ImageMain(&stConvertParam);
+			/*	if (RemoveCustomPixelFormats(stImageInfo.enPixelType))
+				{
+					continue;
+				}*/
+				if (!bConvertRet)
+				{
+					//break;
+                   // MessageBox("拍照出现错误");
                     continue;
-                }
-                //转换为MAT 格式并显示
-              //  WriteLog("准备进入convert2Mat");
-                bConvertRet = ImageMain(&stImageInfo, m_pGrabBuf);
-                if (!bConvertRet)
-                {
-                    break;
-                }
+				}
           
             }
             else
@@ -1734,7 +1785,7 @@ void CBasicDemoDlg::OnBnClickedOpenButton()
     }
 
     //转换成rgb8图像
-    nRet = m_pcMyCamera->SetEnumValue("PixelFormat", 0x02180014);
+    nRet = m_pcMyCamera->SetEnumValue("PixelFormat", 0x01080009);//0x02180014
     if (MV_OK != nRet)
     {
         MessageBox("转换成RGB错误");
@@ -1749,10 +1800,10 @@ void CBasicDemoDlg::OnBnClickedOpenButton()
     m_picHeight = height.nCurValue;
     m_picWeight = width.nCurValue;
 	
-    startPoint.x = 20;
-	startPoint.y = 20;
-	endPoint.x = m_picWeight-20;
-	endPoint.y = m_picHeight-20;
+    startPoint.x = ADJUST;
+	startPoint.y = ADJUST;
+	endPoint.x = m_picWeight- ADJUST;
+	endPoint.y = m_picHeight- ADJUST;
 	
 	h_w_float = float(m_picHeight) / float(m_picWeight);//获得图片的宽高比
 //	rc.SetRect(0, 0, m_picWeight, m_picHeight);//设置矩形的两个角点
@@ -2142,8 +2193,19 @@ void CBasicDemoDlg::OnBnClickedButtonDiff()
 {
     showdiff = !showdiff;
     try {
-        src = imread("1.bmp");
-        cvtColor(src, bmpImgGray, CV_BGR2GRAY);
+        if (showdiff)
+        {
+           
+			//src = imread("1.bmp");
+          
+            cvtColor(orgPic, bmpImgGray, CV_BGR2GRAY);
+   //        
+            if (m_ruihua_status)
+                ;
+            diffstr = "缺陷检测开 |";
+        }
+        else
+            diffstr = "缺陷检测关 |";
     }
     catch (Exception ex)
     {
@@ -2294,8 +2356,10 @@ void CBasicDemoDlg::OnBnClickedButtonsave()
     {
 
       //  m_rotate = 3;
-        Sleep(200);  //给点恢复现场的时间
+       // orgPic = srcImage;  //保存图片
         cv::imwrite("1.bmp", orgPic);  //写入图片srcImage 
+    //    Sleep(200);  //给点恢复现场的时间
+      
         isGotImg = true;
         EnableControls(true);
     }
@@ -2395,7 +2459,7 @@ void CBasicDemoDlg::showFullScreen(int u)
 		
         //获取系统屏幕宽高
         int g_iCurScreenWidth = GetSystemMetrics(SM_CXSCREEN);
-        int g_iCurScreenHeight = GetSystemMetrics(SM_CYSCREEN);
+        int g_iCurScreenHeight = GetSystemMetrics(SM_CYSCREEN) - 50;
 
         //用m_struOldWndpl得到当前窗口的显示状态和窗体位置，以供退出全屏后使用
         GetWindowPlacement(&m_struOldWndpl);
@@ -2412,7 +2476,7 @@ void CBasicDemoDlg::showFullScreen(int u)
         rectFullScreen.left = rectWholeDlg.left - rectClient.left;
         rectFullScreen.top = rectWholeDlg.top - rectClient.top;
         rectFullScreen.right = rectWholeDlg.right + g_iCurScreenWidth - rectClient.right;
-        rectFullScreen.bottom = rectWholeDlg.bottom + g_iCurScreenHeight - rectClient.bottom;
+        rectFullScreen.bottom = rectWholeDlg.bottom + g_iCurScreenHeight - rectClient.bottom ;
 
         //设置窗口对象参数，为全屏做好准备并进入全屏状态
         WINDOWPLACEMENT struWndpl;
@@ -2496,7 +2560,7 @@ void CBasicDemoDlg::HideControls()
     GetDlgItem(IDC_PARAMETER_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
     GetDlgItem(IDC_DISPLAY_STATIC)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
     GetDlgItem(IDC_STATIC_video)->ShowWindow(isDiffScFull ? SW_HIDE : SW_SHOW);
-    GetDlgItem(IDC_STATIC_time)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+   // GetDlgItem(IDC_STATIC_time)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
     GetDlgItem(IDC_EDIT1)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
     GetDlgItem(IDC_STATIC_delay)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
     GetDlgItem(IDC_SPIN1)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
@@ -2505,8 +2569,18 @@ void CBasicDemoDlg::HideControls()
 	GetDlgItem(IDC_BUTTON_move_right)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
 	GetDlgItem(IDC_BUTTON_move_down)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
     
-    GetDlgItem(IDC_BUTTON_adjust)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_BUTTON_adjust)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
 	GetDlgItem(IDC_BUTTON_roiset)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+
+	GetDlgItem(IDC_EDIT_noise)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_BUTTON_noise)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_STATIC_yuzhi)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_STATIC_liangdu)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_STATIC_zaodian)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_CHECK_fushi)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_CHECK_pengzhang)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+	GetDlgItem(IDC_BUTTON_noise)->ShowWindow(bFullScreen ? SW_HIDE : SW_SHOW);
+    
 } 
 void CBasicDemoDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
@@ -2613,8 +2687,8 @@ BOOL CBasicDemoDlg::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 	}
     if (startPoint.x < 0 || startPoint.y < 0)
     {
-        startPoint.x = 0;
-        startPoint.y = 0;
+        startPoint.x = 20;
+        startPoint.y = 20;
     }
 	//endPoint.x = startPoint.x + (int)(m_picHeight * scale);  //计算缩放后的矩形终点坐标
 	//endPoint.y = startPoint.y + (int)(m_picWeight * scale);
@@ -2969,6 +3043,7 @@ void CBasicDemoDlg::OnBnClickedButtonadjust()
 {
     // TODO: 在此添加控件通知处理程序代码
     m_adjust = !m_adjust;
+   
 }
 
 
@@ -2987,4 +3062,49 @@ void CAboutDlg::OnBnClickedOk()
 {
     // TODO: 在此添加控件通知处理程序代码
     CDialog::OnOK();
+}
+
+
+void CBasicDemoDlg::OnBnClickedButtonnoise()
+{
+    // TODO: 在此添加控件通知处理程序代码
+	CString str;
+	GetDlgItemText(IDC_EDIT_noise, str);
+    if (_ttoi(str) < 30)
+        m_Noise = _ttoi(str);
+    else
+        SetDlgItemText(IDC_EDIT_noise, "30");
+
+}
+
+
+void CBasicDemoDlg::OnClickedCheckFushi()
+{
+    // TODO: 在此添加控件通知处理程序代码
+  //  if()
+	CButton* pBtn = (CButton*)GetDlgItem(IDC_CHECK_fushi);
+	 int state = pBtn->GetCheck();
+     m_fushi_state =( state == 0 ? FALSE : true);
+	 /*  if (state == 0)
+		   m_fushi_state = FALSE;
+	   else
+		   m_fushi_state = true;*/
+}
+
+
+void CBasicDemoDlg::OnClickedCheckPengzhang()
+{
+    // TODO: 在此添加控件通知处理程序代码
+	CButton* pBtn = (CButton*)GetDlgItem(IDC_CHECK_pengzhang);
+	int state = pBtn->GetCheck();
+	m_pengzhang_state = (state == 0 ? FALSE : true);
+}
+
+
+void CBasicDemoDlg::OnBnClickedCheckruihua()
+{
+    // TODO: 在此添加控件通知处理程序代码
+	CButton* pBtn = (CButton*)GetDlgItem(IDC_CHECK_ruihua);
+	int state = pBtn->GetCheck();
+    m_ruihua_status = (state == 0 ? FALSE : true);
 }

@@ -16,7 +16,8 @@ IMPLEMENT_DYNAMIC(SetRoi, CDialogEx)
 SetRoi::SetRoi(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_DIALOG_setroi, pParent)
 {
-
+	//button_roi_ok.SetImagePath(_T("C:\\Users\\Administrator\\Desktop\\button1.png"), _T("C:\\Users\\Administrator\\Desktop\\button2.png"));
+	//button_roi_ok.InitMyButton(true);
 }
 
 SetRoi::~SetRoi()
@@ -26,6 +27,7 @@ SetRoi::~SetRoi()
 void SetRoi::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDOK, button_roi_ok);
 }
 
 
@@ -132,6 +134,7 @@ BOOL SetRoi::OnInitDialog()
 	m_bClickEmpty = false;
 	// TODO:  在此添加额外的初始化
 	//InitMySkin();
+	
 	return TRUE;  // return TRUE unless you set the focus to a control
 				  // 异常: OCX 属性页应返回 FALSE
 }

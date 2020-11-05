@@ -2,6 +2,7 @@
 
 #include "stdafx.h"
 #include "cv.h"
+#include "CMyButton.h"
 // SetRoi 对话框
 class SetRoi : public CDialogEx
 {
@@ -65,4 +66,5 @@ public:
 	CRect pic_dlg_rect; // 图片窗口的大小
 	CRect nono_rect; // 图片窗口的大小
 	afx_msg void OnBnClickedOk();
+	CButton button_roi_ok;
 };

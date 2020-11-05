@@ -210,7 +210,7 @@ public:
 public:
     void DrawPicToHDC(IplImage* img, UINT ID);
     int RGB2BGR(unsigned char* pRgbData, unsigned int nWidth, unsigned int nHeight);
-    bool ImageMain(MV_FRAME_OUT_INFO_EX* pstImageInfo, unsigned char* pData);
+    bool ImageMain(MV_CC_PIXEL_CONVERT_PARAM* pstImageInfo);
     afx_msg void OnBnClickedButtonDiff();
     // 做差用时
     CString use_time;
@@ -286,4 +286,19 @@ public:
     bool isGotImg;
     int ADJUST;
     afx_msg void OnBnClickedButtonroiset();
+    afx_msg void OnBnClickedButtonnoise();
+    int m_noise; //设置噪点多大进行过滤
+                 // 噪点过滤
+    int m_Noise;
+    afx_msg void OnClickedCheckFushi();
+    afx_msg void OnClickedCheckPengzhang();
+    BOOL m_fushi_state;
+    BOOL m_pengzhang_state;
+    CString diffstr;
+    afx_msg void OnBnClickedCheckruihua();
+    BOOL m_ruihua_status;
+    void convert_yuv_to_rgb_buffer(unsigned char* yuv, unsigned char* rgb, unsigned int width, unsigned int height);
+    int convert_yuv_to_rgb_pixel(int y, int u, int v);
+    void  yuv422_to_rgb24(unsigned char* yuv422, unsigned char* rgb24, int width, int height);
+    clock_t start, finish;
 };
