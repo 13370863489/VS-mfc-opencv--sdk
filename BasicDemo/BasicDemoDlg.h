@@ -301,4 +301,6 @@ public:
     int convert_yuv_to_rgb_pixel(int y, int u, int v);
     void  yuv422_to_rgb24(unsigned char* yuv422, unsigned char* rgb24, int width, int height);
     clock_t start, finish;
+    unsigned int IMGFORMAT;
+    int DIFFRECT;
 };

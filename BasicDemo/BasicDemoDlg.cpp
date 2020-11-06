@@ -302,7 +302,8 @@ LPCTSTR lpFileName;//是完整的INI文件名.
 */
 void CBasicDemoDlg::ReadIni()
 {
-    CString str,adjust;
+    CString str,adjust ;
+    CString imgFormat, diffRect;
     CFileFind finder;   //查找是否存在ini文件，若不存在，则生成一个新的默认设置的ini文件，这样就保证了我们更改后的设置每次都可用  
     BOOL ifFind = finder.FindFile(_T("config.ini"));
    // BOOL ifFind = finder.FindFile(_T("config.ini"));
@@ -312,8 +313,12 @@ void CBasicDemoDlg::ReadIni()
     }
     GetPrivateProfileString(_T("config"), _T("LOG"), CString("-1"), str.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));    
     GetPrivateProfileString(_T("config"), _T("ADJUST"), CString("-1"), adjust.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));
+    GetPrivateProfileString(_T("config"), _T("IMGFORMAT"), CString("-1"), imgFormat.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));
+    GetPrivateProfileString(_T("config"), _T("DIFFRECT"), CString("-1"), diffRect.GetBuffer(MAX_PATH), MAX_PATH, _T(".//config.ini"));
     m_WriteLog = (str == "1")?TRUE:FALSE;
     ADJUST = _ttoi(adjust);
+    IMGFORMAT = _ttoi(imgFormat);
+    DIFFRECT = _ttoi(diffRect);
 }
 BOOL CBasicDemoDlg::DoRegisterDeviceInterface()
 {
@@ -1349,13 +1354,14 @@ bool CBasicDemoDlg::ImageMain(MV_CC_PIXEL_CONVERT_PARAM* pstImageInfo)
                 for (int i = 0; i < contours.size(); i++)
                 {
                     boundRect[i] = boundingRect(contours[i]);
-                    if (boundRect[i].width < m_Noise && boundRect[i].height < m_Noise)  //如果脏太小，可能就是干扰项了，过滤掉
+                    if (boundRect[i].width < m_Noise && boundRect[i].height < m_Noise)  //如果脏点太小，可能就是干扰项了，过滤掉
                     {
                         delcount++;
                         continue;
                     }
                         
                     // 在result上绘制正外接矩形
+                    if(DIFFRECT == 1)
                     rectangle(srcImage, boundRect[i], Scalar(0, 255, 0), 2);  //在原图上画矩形
                 }
 
@@ -1783,12 +1789,24 @@ void CBasicDemoDlg::OnBnClickedOpenButton()
         ShowErrorMsg(TEXT("打开设备失败！"), nRet);
         return;
     }
-
+    unsigned int pixFormat;
     //转换成rgb8图像
-    nRet = m_pcMyCamera->SetEnumValue("PixelFormat", 0x01080009);//0x02180014
+    switch (IMGFORMAT)
+    {
+        case 0:
+            pixFormat = 0x01080009;  //BayerRG8
+        case 1:
+            pixFormat = 0x0108000B;  //BayerBG8
+        case 2:
+            pixFormat = 0x02180014;  //RGB8Packed
+    default:
+        pixFormat = 0x01080009; //BayerRG8
+        break;
+    }
+    nRet = m_pcMyCamera->SetEnumValue("PixelFormat", pixFormat);
     if (MV_OK != nRet)
     {
-        MessageBox("转换成RGB错误");
+        MessageBox("相机格式错误错误");
         return;
     }
 
